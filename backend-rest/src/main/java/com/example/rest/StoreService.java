@@ -1,5 +1,8 @@
 package com.example.rest;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +15,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class StoreService {
+    private static final int MAX_PAGE_SIZE = 50;
+
     private final ProdutoRepository produtoRepository;
     private final ClienteRepository clienteRepository;
     private final OrderClient orderClient;
@@ -36,6 +41,27 @@ public class StoreService {
         return produtos.stream()
                 .map(produto -> toProdutoResponse(produto, estoques.getOrDefault(produto.getId(), 0)))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ApiTypes.ProdutoPageResponse listarProdutosPaginados(int page, int size) {
+        Page<Produto> produtos = produtoRepository.findAll(PageRequest.of(
+                Math.max(page, 0),
+                safeSize(size, 12),
+                Sort.by(Sort.Direction.ASC, "id")
+        ));
+        Map<Long, Integer> estoques = estoquesPorProduto(produtos.getContent().stream().map(Produto::getId).toList());
+        return new ApiTypes.ProdutoPageResponse(
+                produtos.getContent().stream()
+                        .map(produto -> toProdutoResponse(produto, estoques.getOrDefault(produto.getId(), 0)))
+                        .toList(),
+                produtos.getNumber(),
+                produtos.getSize(),
+                produtos.getTotalElements(),
+                produtos.getTotalPages(),
+                produtos.isFirst(),
+                produtos.isLast()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -121,6 +147,11 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
+    public ApiTypes.PedidoPageResponse listarPedidosPaginados(int page, int size) {
+        return orderClient.listarPedidosPaginados(Math.max(page, 0), safeSize(size, 10));
+    }
+
+    @Transactional(readOnly = true)
     public ApiTypes.PedidoResponse buscarPedido(Long id) {
         return orderClient.buscarPedido(id);
     }
@@ -134,8 +165,55 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
+    public ApiTypes.PedidoPageResponse listarPedidosPorClientePaginados(Long clienteId, int page, int size) {
+        if (!clienteRepository.existsById(clienteId)) {
+            throw new ResourceNotFoundException("Cliente " + clienteId + " nao encontrado.");
+        }
+        return orderClient.listarPedidosPorClientePaginados(clienteId, Math.max(page, 0), safeSize(size, 5));
+    }
+
+    @Transactional(readOnly = true)
     public List<ApiTypes.ItemPedidoResponse> listarItensDoPedido(Long pedidoId) {
         return orderClient.listarItensDoPedido(pedidoId);
+    }
+
+    @Transactional(readOnly = true)
+    public ApiTypes.ResumoVendasResponse resumoVendas(int limit) {
+        OrderClient.ResumoVendasInternoResponse resumo = orderClient.resumoVendas(safeLimit(limit));
+        List<Long> produtoIds = resumo.produtosMaisVendidos().stream()
+                .map(OrderClient.ProdutoVendidoInternoResponse::produtoId)
+                .toList();
+        Map<Long, ApiTypes.ProdutoResponse> produtos = produtosResponseMap(produtoIds);
+        return new ApiTypes.ResumoVendasResponse(
+                resumo.totalPedidos(),
+                resumo.faturamentoTotal(),
+                resumo.ticketMedio(),
+                resumo.produtosMaisVendidos().stream()
+                        .map(item -> new ApiTypes.ProdutoMaisVendidoResponse(
+                                produtos.get(item.produtoId()),
+                                item.quantidadeVendida(),
+                                item.faturamento()
+                        ))
+                        .filter(item -> item.produto() != null)
+                        .toList()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<ApiTypes.ProdutoResponse> estoqueCritico(int limit) {
+        List<InventoryClient.EstoqueResponse> estoques = inventoryClient.listarCriticos(safeLimit(limit));
+        Map<Long, Produto> produtos = produtoRepository.findAllById(
+                        estoques.stream().map(InventoryClient.EstoqueResponse::produtoId).toList()
+                )
+                .stream()
+                .collect(Collectors.toMap(Produto::getId, Function.identity()));
+        return estoques.stream()
+                .map(estoque -> {
+                    Produto produto = produtos.get(estoque.produtoId());
+                    return produto == null ? null : toProdutoResponse(produto, estoque.quantidade());
+                })
+                .filter(produto -> produto != null)
+                .toList();
     }
 
     @Transactional
@@ -174,6 +252,17 @@ public class StoreService {
     private Map<Long, Integer> estoquesPorProduto(Collection<Long> produtoIds) {
         return inventoryClient.listar(produtoIds).stream()
                 .collect(Collectors.toMap(InventoryClient.EstoqueResponse::produtoId, InventoryClient.EstoqueResponse::quantidade));
+    }
+
+    private Map<Long, ApiTypes.ProdutoResponse> produtosResponseMap(Collection<Long> produtoIds) {
+        if (produtoIds == null || produtoIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> uniqueIds = produtoIds.stream().distinct().toList();
+        Map<Long, Integer> estoques = estoquesPorProduto(uniqueIds);
+        return produtoRepository.findAllById(uniqueIds).stream()
+                .map(produto -> toProdutoResponse(produto, estoques.getOrDefault(produto.getId(), 0)))
+                .collect(Collectors.toMap(ApiTypes.ProdutoResponse::id, Function.identity()));
     }
 
     private Produto findProduto(Long id) {
@@ -232,5 +321,19 @@ public class StoreService {
             throw new IllegalArgumentException(fieldName + " nao pode ser negativo.");
         }
         return value;
+    }
+
+    private int safeSize(int size, int defaultSize) {
+        if (size <= 0) {
+            return defaultSize;
+        }
+        return Math.min(size, MAX_PAGE_SIZE);
+    }
+
+    private int safeLimit(int limit) {
+        if (limit <= 0) {
+            return 12;
+        }
+        return Math.min(limit, MAX_PAGE_SIZE);
     }
 }

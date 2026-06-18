@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="Eletronicos">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#e8f4ff"/>
+      <stop offset="1" stop-color="#cfe7ff"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" x2="1">
+      <stop offset="0" stop-color="#17324d"/>
+      <stop offset="1" stop-color="#246b9a"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="34" fill="url(#bg)"/>
+  <circle cx="528" cy="84" r="72" fill="#ffffff" opacity=".55"/>
+  <circle cx="108" cy="338" r="90" fill="#7cc6e8" opacity=".24"/>
+  <rect x="128" y="112" width="316" height="188" rx="18" fill="#ffffff"/>
+  <rect x="146" y="130" width="280" height="152" rx="10" fill="url(#screen)"/>
+  <path d="M104 322h368l-36 40H140z" fill="#8ba6b8"/>
+  <path d="M198 322h180l-16 18H214z" fill="#dce8ef"/>
+  <rect x="454" y="172" width="86" height="154" rx="20" fill="#12304a"/>
+  <rect x="466" y="190" width="62" height="110" rx="10" fill="#e7f4fb"/>
+  <circle cx="497" cy="312" r="7" fill="#d4e5ee"/>
+  <path d="M194 176h132M194 214h88M194 252h156" stroke="#76d0ff" stroke-width="14" stroke-linecap="round"/>
+</svg>

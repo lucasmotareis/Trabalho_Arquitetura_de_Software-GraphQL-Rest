@@ -14,6 +14,9 @@ function normalizeGraphqlUrl(value) {
 
 const REST_BASE_URL = normalizeRestUrl(import.meta.env.VITE_REST_API_URL);
 const GRAPHQL_URL = normalizeGraphqlUrl(import.meta.env.VITE_GRAPHQL_API_URL);
+const PRODUCT_PAGE_SIZE = 12;
+const CUSTOMER_ORDER_PAGE_SIZE = 5;
+const DASHBOARD_LIMIT = 12;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -32,10 +35,33 @@ function formatPayload(text) {
     return "";
   }
   try {
-    return JSON.stringify(JSON.parse(text), null, 2);
+    const parsed = JSON.parse(text);
+    if (typeof parsed.query === "string") {
+      return formatGraphqlPayload(parsed);
+    }
+    return JSON.stringify(parsed, null, 2);
   } catch {
     return text;
   }
+}
+
+function formatGraphqlPayload(payload) {
+  const query = normalizeGraphqlQuery(payload.query);
+  const variables = payload.variables && Object.keys(payload.variables).length > 0
+    ? JSON.stringify(payload.variables, null, 2)
+    : "{}";
+
+  return `query:\n${query}\n\nvariables:\n${variables}`;
+}
+
+function normalizeGraphqlQuery(query) {
+  const lines = query.replace(/\r\n/g, "\n").trim().split("\n");
+  const indents = lines
+    .filter((line) => line.trim())
+    .map((line) => line.match(/^\s*/)?.[0].length ?? 0);
+  const minIndent = indents.length ? Math.min(...indents) : 0;
+
+  return lines.map((line) => line.slice(minIndent).trimEnd()).join("\n");
 }
 
 function emptyMetrics(scenario, mode) {
@@ -153,43 +179,72 @@ async function gql(metrics, label, query, variables = {}) {
 
 export const scenarios = [
   {
-    id: "catalogo",
-    name: "Catalogo de produtos",
-    description: "Lista simples de produtos disponiveis.",
+    id: "cliente-catalogo-mobile",
+    actor: "Cliente",
+    name: "Catalogo mobile",
+    description: "Lista enxuta para compra em tela pequena.",
+    resultType: "catalogo-mobile",
+    debate: "REST retorna o recurso completo. GraphQL pede apenas os campos essenciais da vitrine para reduzir payload.",
   },
   {
-    id: "pedido",
-    name: "Detalhe do pedido #1",
+    id: "cliente-detalhe-pedido",
+    actor: "Cliente",
+    name: "Detalhe do pedido",
     description: "Pedido, cliente, itens e produtos relacionados.",
+    resultType: "pedido",
+    debate: "REST monta a tela com varias chamadas. GraphQL entrega o grafo do pedido em uma unica requisicao do navegador.",
   },
   {
-    id: "historico",
-    name: "Historico da cliente #1",
+    id: "cliente-historico-compras",
+    actor: "Cliente",
+    name: "Historico de compras",
     description: "Cliente, pedidos, itens e produtos de cada pedido.",
+    resultType: "historico",
+    debate: "Historico exige dados aninhados. GraphQL reduz a montagem manual do frontend em relacoes cliente-pedido-produto.",
   },
   {
-    id: "dashboard",
-    name: "Resumo de vendas",
+    id: "admin-painel-vendas",
+    actor: "Administrador",
+    name: "Painel de vendas",
     description: "Faturamento, ticket medio e produtos mais vendidos.",
+    resultType: "dashboard",
+    debate: "Dashboard e uma visao agregada. REST evidencia varias chamadas; GraphQL atua como camada de composicao.",
+  },
+  {
+    id: "admin-estoque-critico",
+    actor: "Administrador",
+    name: "Estoque critico",
+    description: "Produtos com menor disponibilidade no estoque.",
+    resultType: "estoque-critico",
+    debate: "A tela precisa de poucos campos. REST recebe o catalogo completo; GraphQL consulta apenas o necessario para decisao.",
+  },
+  {
+    id: "admin-analise-cliente",
+    actor: "Administrador",
+    name: "Analise de cliente",
+    description: "Total gasto, pedidos recentes e produtos comprados.",
+    resultType: "analise-cliente",
+    debate: "A analise combina cliente, pedidos e itens. GraphQL simplifica uma tela gerencial composta.",
   },
 ];
 
-export async function runScenario(scenarioId, mode) {
+export async function runScenario(scenarioId, mode, options = {}) {
   const metrics = emptyMetrics(scenarioId, mode);
   const scenarioStart = performance.now();
   let data;
 
-  if (scenarioId === "catalogo") {
-    data = mode === "rest" ? await restCatalogo(metrics) : await gqlCatalogo(metrics);
-  }
-  if (scenarioId === "pedido") {
+  if (scenarioId === "cliente-catalogo-mobile") {
+    data = mode === "rest" ? await restCatalogoMobile(metrics, options) : await gqlCatalogoMobile(metrics, options);
+  } else if (scenarioId === "cliente-detalhe-pedido") {
     data = mode === "rest" ? await restPedido(metrics, 1) : await gqlPedido(metrics, 1);
-  }
-  if (scenarioId === "historico") {
-    data = mode === "rest" ? await restHistorico(metrics, 1) : await gqlHistorico(metrics, 1);
-  }
-  if (scenarioId === "dashboard") {
+  } else if (scenarioId === "cliente-historico-compras") {
+    data = mode === "rest" ? await restHistorico(metrics, 1, options) : await gqlHistorico(metrics, 1, options);
+  } else if (scenarioId === "admin-painel-vendas") {
     data = mode === "rest" ? await restDashboard(metrics) : await gqlDashboard(metrics);
+  } else if (scenarioId === "admin-estoque-critico") {
+    data = mode === "rest" ? await restEstoqueCritico(metrics) : await gqlEstoqueCritico(metrics);
+  } else if (scenarioId === "admin-analise-cliente") {
+    data = mode === "rest" ? await restAnaliseCliente(metrics, 1, options) : await gqlAnaliseCliente(metrics, 1, options);
   }
 
   if (!data) {
@@ -198,15 +253,15 @@ export async function runScenario(scenarioId, mode) {
   return { data, metrics: finishMetrics(metrics, scenarioStart) };
 }
 
-export async function compareScenario(scenarioId, iterations = 1) {
+export async function compareScenario(scenarioId, iterations = 1, options = {}) {
   const restRuns = [];
   const graphqlRuns = [];
   let restData = null;
   let graphqlData = null;
 
   for (let index = 0; index < iterations; index += 1) {
-    const rest = await runScenario(scenarioId, "rest");
-    const graphql = await runScenario(scenarioId, "graphql");
+    const rest = await runScenario(scenarioId, "rest", options);
+    const graphql = await runScenario(scenarioId, "graphql", options);
     restRuns.push(rest.metrics);
     graphqlRuns.push(graphql.metrics);
     restData = rest.data;
@@ -241,6 +296,21 @@ function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function pageFromOptions(options) {
+  return Math.max(Number(options?.page ?? 0), 0);
+}
+
+function normalizeRestPage(page) {
+  return {
+    page: page.page,
+    size: page.size,
+    totalElements: page.totalElements,
+    totalPages: page.totalPages,
+    first: page.first,
+    last: page.last,
+  };
+}
+
 async function restCatalogo(metrics) {
   return {
     produtos: await restGet(metrics, "GET /api/produtos", "/produtos"),
@@ -263,6 +333,51 @@ async function gqlCatalogo(metrics) {
     }`,
   );
   return { produtos: data.produtos };
+}
+
+async function restCatalogoMobile(metrics, options = {}) {
+  const page = pageFromOptions(options);
+  const produtos = await restGet(
+    metrics,
+    `GET /api/produtos/paginados?page=${page}&size=${PRODUCT_PAGE_SIZE}`,
+    `/produtos/paginados?page=${page}&size=${PRODUCT_PAGE_SIZE}`,
+  );
+  return {
+    produtos: produtos.content.map(toProdutoMobile),
+    pageInfo: normalizeRestPage(produtos),
+  };
+}
+
+async function gqlCatalogoMobile(metrics, options = {}) {
+  const page = pageFromOptions(options);
+  const data = await gql(
+    metrics,
+    "query produtosPaginados mobile",
+    `query ProdutosPaginados($page: Int!, $size: Int!) {
+      produtosPaginados(page: $page, size: $size) {
+        content {
+          id
+          nome
+          categoria
+          preco
+          estoque
+        }
+        pageInfo {
+          page
+          size
+          totalElements
+          totalPages
+          first
+          last
+        }
+      }
+    }`,
+    { page, size: PRODUCT_PAGE_SIZE },
+  );
+  return {
+    produtos: data.produtosPaginados.content,
+    pageInfo: data.produtosPaginados.pageInfo,
+  };
 }
 
 async function restPedido(metrics, pedidoId) {
@@ -311,9 +426,15 @@ async function gqlPedido(metrics, pedidoId) {
   return { pedido: data.pedido };
 }
 
-async function restHistorico(metrics, clienteId) {
+async function restHistorico(metrics, clienteId, options = {}) {
+  const page = pageFromOptions(options);
   const cliente = await restGet(metrics, `GET /api/clientes/${clienteId}`, `/clientes/${clienteId}`);
-  const pedidos = await restGet(metrics, `GET /api/clientes/${clienteId}/pedidos`, `/clientes/${clienteId}/pedidos`);
+  const pedidosPage = await restGet(
+    metrics,
+    `GET /api/clientes/${clienteId}/pedidos/paginados?page=${page}&size=${CUSTOMER_ORDER_PAGE_SIZE}`,
+    `/clientes/${clienteId}/pedidos/paginados?page=${page}&size=${CUSTOMER_ORDER_PAGE_SIZE}`,
+  );
+  const pedidos = pedidosPage.content;
   const itensPorPedido = await Promise.all(
     pedidos.map((pedido) => restGet(metrics, `GET /api/pedidos/${pedido.id}/itens`, `/pedidos/${pedido.id}/itens`)),
   );
@@ -323,6 +444,7 @@ async function restHistorico(metrics, clienteId) {
   return {
     cliente: {
       ...cliente,
+      pageInfo: normalizeRestPage(pedidosPage),
       pedidos: pedidos.map((pedido, index) => ({
         ...pedido,
         itens: itensPorPedido[index].map((item) => ({
@@ -334,22 +456,20 @@ async function restHistorico(metrics, clienteId) {
   };
 }
 
-async function gqlHistorico(metrics, clienteId) {
+async function gqlHistorico(metrics, clienteId, options = {}) {
+  const page = pageFromOptions(options);
   const data = await gql(
     metrics,
-    "query cliente",
-    `query Cliente($id: ID!) {
-      cliente(id: $id) {
-        id
-        nome
-        email
-        cidade
-        pedidos {
+    "query pedidosPorClientePaginado",
+    `query ClienteHistorico($id: ID!, $page: Int!, $size: Int!) {
+      pedidosPorClientePaginado(clienteId: $id, page: $page, size: $size) {
+        content {
           id
           status
           criadoEm
           total
           quantidadeItens
+          cliente { id nome email cidade }
           itens {
             id
             quantidade
@@ -357,42 +477,41 @@ async function gqlHistorico(metrics, clienteId) {
             produto { id nome preco categoria }
           }
         }
+        pageInfo {
+          page
+          size
+          totalElements
+          totalPages
+          first
+          last
+        }
       }
     }`,
-    { id: String(clienteId) },
+    { id: String(clienteId), page, size: CUSTOMER_ORDER_PAGE_SIZE },
   );
-  return { cliente: data.cliente };
+  const pedidos = data.pedidosPorClientePaginado.content;
+  const cliente = pedidos[0]?.cliente ?? {
+    id: String(clienteId),
+    nome: `Cliente ${clienteId}`,
+    email: "cliente nao encontrado na pagina",
+    cidade: "-",
+  };
+  return {
+    cliente: {
+      ...cliente,
+      pedidos,
+      pageInfo: data.pedidosPorClientePaginado.pageInfo,
+    },
+  };
 }
 
 async function restDashboard(metrics) {
-  const pedidos = await restGet(metrics, "GET /api/pedidos", "/pedidos");
-  const itensPorPedido = await Promise.all(
-    pedidos.map((pedido) => restGet(metrics, `GET /api/pedidos/${pedido.id}/itens`, `/pedidos/${pedido.id}/itens`)),
-  );
-  const todosItens = itensPorPedido.flat();
-  const produtos = await fetchProdutosUnicos(metrics, todosItens.map((item) => item.produtoId));
-  const vendidos = new Map();
-
-  for (const item of todosItens) {
-    const produto = produtos.get(item.produtoId);
-    const atual = vendidos.get(item.produtoId) ?? {
-      produto,
-      quantidadeVendida: 0,
-      faturamento: 0,
-    };
-    atual.quantidadeVendida += item.quantidade;
-    atual.faturamento += Number(item.subtotal);
-    vendidos.set(item.produtoId, atual);
-  }
-
-  const faturamentoTotal = pedidos.reduce((sum, pedido) => sum + Number(pedido.total), 0);
   return {
-    resumoVendas: {
-      totalPedidos: pedidos.length,
-      faturamentoTotal,
-      ticketMedio: pedidos.length ? faturamentoTotal / pedidos.length : 0,
-      produtosMaisVendidos: [...vendidos.values()].sort((a, b) => b.quantidadeVendida - a.quantidadeVendida),
-    },
+    resumoVendas: await restGet(
+      metrics,
+      `GET /api/resumo-vendas?limit=${DASHBOARD_LIMIT}`,
+      `/resumo-vendas?limit=${DASHBOARD_LIMIT}`,
+    ),
   };
 }
 
@@ -400,8 +519,8 @@ async function gqlDashboard(metrics) {
   const data = await gql(
     metrics,
     "query resumoVendas",
-    `query {
-      resumoVendas {
+    `query ResumoVendas($limit: Int!) {
+      resumoVendas(limit: $limit) {
         totalPedidos
         faturamentoTotal
         ticketMedio
@@ -412,8 +531,46 @@ async function gqlDashboard(metrics) {
         }
       }
     }`,
+    { limit: DASHBOARD_LIMIT },
   );
   return { resumoVendas: data.resumoVendas };
+}
+
+async function restEstoqueCritico(metrics) {
+  const produtos = await restGet(
+    metrics,
+    `GET /api/estoque-critico?limit=${DASHBOARD_LIMIT}`,
+    `/estoque-critico?limit=${DASHBOARD_LIMIT}`,
+  );
+  return { estoqueCritico: buildEstoqueCritico(produtos) };
+}
+
+async function gqlEstoqueCritico(metrics) {
+  const data = await gql(
+    metrics,
+    "query estoque critico",
+    `query EstoqueCritico($limit: Int!) {
+      estoqueCritico(limit: $limit) {
+        id
+        nome
+        categoria
+        preco
+        estoque
+      }
+    }`,
+    { limit: DASHBOARD_LIMIT },
+  );
+  return { estoqueCritico: buildEstoqueCritico(data.estoqueCritico) };
+}
+
+async function restAnaliseCliente(metrics, clienteId, options = {}) {
+  const { cliente } = await restHistorico(metrics, clienteId, options);
+  return { analiseCliente: buildAnaliseCliente(cliente) };
+}
+
+async function gqlAnaliseCliente(metrics, clienteId, options = {}) {
+  const { cliente } = await gqlHistorico(metrics, clienteId, options);
+  return { analiseCliente: buildAnaliseCliente(cliente) };
 }
 
 async function fetchProdutosUnicos(metrics, produtoIds) {
@@ -422,4 +579,73 @@ async function fetchProdutosUnicos(metrics, produtoIds) {
     uniqueIds.map((id) => restGet(metrics, `GET /api/produtos/${id}`, `/produtos/${id}`)),
   );
   return new Map(produtos.map((produto) => [produto.id, produto]));
+}
+
+function toProdutoMobile(produto) {
+  return {
+    id: produto.id,
+    nome: produto.nome,
+    categoria: produto.categoria,
+    preco: produto.preco,
+    estoque: produto.estoque,
+  };
+}
+
+function buildEstoqueCritico(produtos) {
+  const ordenados = [...produtos]
+    .map(toProdutoMobile)
+    .sort((a, b) => Number(a.estoque ?? 0) - Number(b.estoque ?? 0) || String(a.nome).localeCompare(String(b.nome)));
+  const selecionados = ordenados.slice(0, 12);
+
+  return {
+    produtos: selecionados,
+    totalProdutos: produtos.length,
+    menorEstoque: selecionados[0]?.estoque ?? 0,
+    limiteExibido: selecionados.at(-1)?.estoque ?? 0,
+  };
+}
+
+function buildAnaliseCliente(cliente) {
+  const pedidos = cliente?.pedidos ?? [];
+  const produtos = new Map();
+
+  for (const pedido of pedidos) {
+    for (const item of pedido.itens ?? []) {
+      const produto = item.produto;
+      if (!produto) {
+        continue;
+      }
+      const atual = produtos.get(produto.id) ?? {
+        produto,
+        quantidade: 0,
+        valor: 0,
+      };
+      atual.quantidade += Number(item.quantidade ?? 0);
+      atual.valor += Number(item.subtotal ?? 0);
+      produtos.set(produto.id, atual);
+    }
+  }
+
+  const totalGasto = pedidos.reduce((sum, pedido) => sum + Number(pedido.total ?? 0), 0);
+  const totalItens = pedidos.reduce(
+    (sum, pedido) =>
+      sum + Number(pedido.quantidadeItens ?? (pedido.itens ?? []).reduce((inner, item) => inner + Number(item.quantidade ?? 0), 0)),
+    0,
+  );
+
+  return {
+    id: cliente.id,
+    nome: cliente.nome,
+    email: cliente.email,
+    cidade: cliente.cidade,
+    pageInfo: cliente.pageInfo,
+    totalPedidos: pedidos.length,
+    totalGasto,
+    ticketMedio: pedidos.length ? totalGasto / pedidos.length : 0,
+    totalItens,
+    pedidosRecentes: pedidos.slice(0, 5),
+    produtosMaisComprados: [...produtos.values()]
+      .sort((a, b) => b.quantidade - a.quantidade || b.valor - a.valor)
+      .slice(0, 5),
+  };
 }

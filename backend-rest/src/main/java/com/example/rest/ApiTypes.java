@@ -31,6 +31,18 @@ public final class ApiTypes {
     ) {
     }
 
+    @Schema(description = "Pagina de produtos retornada pela API REST.")
+    public record ProdutoPageResponse(
+            @Schema(description = "Produtos da pagina atual.") List<ProdutoResponse> content,
+            @Schema(description = "Indice da pagina atual, com inicio em zero.", example = "0") int page,
+            @Schema(description = "Quantidade solicitada por pagina.", example = "12") int size,
+            @Schema(description = "Total de produtos encontrados.", example = "120") long totalElements,
+            @Schema(description = "Total de paginas disponiveis.", example = "10") int totalPages,
+            @Schema(description = "Indica se esta e a primeira pagina.", example = "true") boolean first,
+            @Schema(description = "Indica se esta e a ultima pagina.", example = "false") boolean last
+    ) {
+    }
+
     @Schema(description = "Payload para criar ou atualizar um cliente.")
     public record ClienteRequest(
             @Schema(description = "Nome completo do cliente.", example = "Ana Souza") String nome,
@@ -79,6 +91,18 @@ public final class ApiTypes {
     ) {
     }
 
+    @Schema(description = "Pagina de pedidos retornada pela API REST.")
+    public record PedidoPageResponse(
+            @Schema(description = "Pedidos da pagina atual.") List<PedidoResponse> content,
+            @Schema(description = "Indice da pagina atual, com inicio em zero.", example = "0") int page,
+            @Schema(description = "Quantidade solicitada por pagina.", example = "5") int size,
+            @Schema(description = "Total de pedidos encontrados.", example = "150") long totalElements,
+            @Schema(description = "Total de paginas disponiveis.", example = "30") int totalPages,
+            @Schema(description = "Indica se esta e a primeira pagina.", example = "true") boolean first,
+            @Schema(description = "Indica se esta e a ultima pagina.", example = "false") boolean last
+    ) {
+    }
+
     @Schema(description = "Item de pedido retornado pela API REST granular.")
     public record ItemPedidoResponse(
             @Schema(description = "Identificador do item.", example = "1") Long id,
@@ -87,6 +111,23 @@ public final class ApiTypes {
             @Schema(description = "Quantidade comprada.", example = "2") int quantidade,
             @Schema(description = "Preco unitario capturado no momento da compra.", example = "149.90") BigDecimal precoUnitario,
             @Schema(description = "Subtotal do item.", example = "299.80") BigDecimal subtotal
+    ) {
+    }
+
+    @Schema(description = "Produto ranqueado no resumo de vendas.")
+    public record ProdutoMaisVendidoResponse(
+            @Schema(description = "Produto vendido.") ProdutoResponse produto,
+            @Schema(description = "Quantidade total vendida.", example = "32") int quantidadeVendida,
+            @Schema(description = "Faturamento gerado pelo produto.", example = "44716.80") BigDecimal faturamento
+    ) {
+    }
+
+    @Schema(description = "Resumo agregado de vendas usado no painel administrativo.")
+    public record ResumoVendasResponse(
+            @Schema(description = "Total de pedidos processados.", example = "150") long totalPedidos,
+            @Schema(description = "Faturamento total.", example = "1177383.65") BigDecimal faturamentoTotal,
+            @Schema(description = "Ticket medio por pedido.", example = "7849.22") BigDecimal ticketMedio,
+            @Schema(description = "Produtos mais vendidos.") List<ProdutoMaisVendidoResponse> produtosMaisVendidos
     ) {
     }
 

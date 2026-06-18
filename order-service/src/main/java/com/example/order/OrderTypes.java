@@ -41,6 +41,32 @@ public final class OrderTypes {
     ) {
     }
 
+    public record PedidoPageResponse(
+            List<PedidoResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last
+    ) {
+    }
+
+    public record ProdutoVendidoResponse(
+            Long produtoId,
+            int quantidadeVendida,
+            BigDecimal faturamento
+    ) {
+    }
+
+    public record ResumoVendasResponse(
+            long totalPedidos,
+            BigDecimal faturamentoTotal,
+            BigDecimal ticketMedio,
+            List<ProdutoVendidoResponse> produtosMaisVendidos
+    ) {
+    }
+
     public record ErrorResponse(String message) {
     }
 }

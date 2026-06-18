@@ -1,5 +1,8 @@
 package com.example.inventory;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -8,6 +11,8 @@ import java.util.List;
 
 @Service
 public class InventoryService {
+    private static final int MAX_PAGE_SIZE = 50;
+
     private final EstoqueRepository repository;
 
     public InventoryService(EstoqueRepository repository) {
@@ -29,6 +34,37 @@ public class InventoryService {
         }
         return repository.findByProdutoIdIn(produtoIds).stream()
                 .sorted(Comparator.comparing(Estoque::getProdutoId))
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public InventoryTypes.EstoquePageResponse listarPaginado(int page, int size) {
+        Page<Estoque> estoques = repository.findAll(PageRequest.of(
+                Math.max(page, 0),
+                safeSize(size),
+                Sort.by(Sort.Direction.ASC, "produtoId")
+        ));
+        return new InventoryTypes.EstoquePageResponse(
+                estoques.getContent().stream().map(this::toResponse).toList(),
+                estoques.getNumber(),
+                estoques.getSize(),
+                estoques.getTotalElements(),
+                estoques.getTotalPages(),
+                estoques.isFirst(),
+                estoques.isLast()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<InventoryTypes.EstoqueResponse> listarCriticos(int limit) {
+        return repository.findAll(PageRequest.of(
+                        0,
+                        safeLimit(limit),
+                        Sort.by(Sort.Direction.ASC, "quantidade").and(Sort.by(Sort.Direction.ASC, "produtoId"))
+                ))
+                .getContent()
+                .stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -80,5 +116,19 @@ public class InventoryService {
             throw new IllegalArgumentException("Quantidade nao pode ser negativa.");
         }
         return value;
+    }
+
+    private int safeSize(int size) {
+        if (size <= 0) {
+            return 20;
+        }
+        return Math.min(size, MAX_PAGE_SIZE);
+    }
+
+    private int safeLimit(int limit) {
+        if (limit <= 0) {
+            return 12;
+        }
+        return Math.min(limit, MAX_PAGE_SIZE);
     }
 }

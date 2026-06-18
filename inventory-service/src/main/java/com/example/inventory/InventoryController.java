@@ -31,6 +31,19 @@ public class InventoryController {
         return service.listar(produtoIds);
     }
 
+    @GetMapping("/estoques/paginados")
+    public InventoryTypes.EstoquePageResponse listarPaginado(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return service.listarPaginado(page, size);
+    }
+
+    @GetMapping("/estoques/criticos")
+    public List<InventoryTypes.EstoqueResponse> listarCriticos(@RequestParam(defaultValue = "12") int limit) {
+        return service.listarCriticos(limit);
+    }
+
     @GetMapping("/estoques/{produtoId}")
     public InventoryTypes.EstoqueResponse buscar(@PathVariable Long produtoId) {
         return service.buscar(produtoId);

@@ -33,6 +33,11 @@ public class InventoryClient {
         return Arrays.asList(response);
     }
 
+    public List<EstoqueResponse> listarCriticos(int limit) {
+        EstoqueResponse[] response = httpClient.get("/estoques/criticos?limit=" + limit, EstoqueResponse[].class);
+        return Arrays.asList(response);
+    }
+
     public void definirQuantidade(Long produtoId, int quantidade) {
         httpClient.put("/estoques/" + produtoId, new EstoqueRequest(quantidade), EstoqueResponse.class);
     }

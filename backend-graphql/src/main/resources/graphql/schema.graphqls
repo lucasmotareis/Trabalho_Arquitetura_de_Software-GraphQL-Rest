@@ -22,6 +22,40 @@ type Produto {
 }
 
 """
+Metadados de uma consulta paginada.
+"""
+type PageInfo {
+  """Indice da pagina atual, iniciando em zero."""
+  page: Int!
+
+  """Quantidade solicitada por pagina."""
+  size: Int!
+
+  """Total de registros encontrados."""
+  totalElements: Int!
+
+  """Total de paginas disponiveis."""
+  totalPages: Int!
+
+  """Indica se esta e a primeira pagina."""
+  first: Boolean!
+
+  """Indica se esta e a ultima pagina."""
+  last: Boolean!
+}
+
+"""
+Pagina de produtos do catalogo.
+"""
+type ProdutoPage {
+  """Produtos da pagina atual."""
+  content: [Produto!]!
+
+  """Informacoes de navegacao da pagina."""
+  pageInfo: PageInfo!
+}
+
+"""
 Dados essenciais de cliente usados quando o cliente aparece dentro de um pedido.
 """
 type ClienteResumo {
@@ -102,6 +136,17 @@ type Pedido {
 
   """Itens do pedido com os produtos relacionados."""
   itens: [ItemPedido!]!
+}
+
+"""
+Pagina de pedidos usada em historicos e analises.
+"""
+type PedidoPage {
+  """Pedidos da pagina atual."""
+  content: [Pedido!]!
+
+  """Informacoes de navegacao da pagina."""
+  pageInfo: PageInfo!
 }
 
 """
@@ -198,6 +243,15 @@ type Query {
   """Lista todos os produtos do catalogo."""
   produtos: [Produto!]!
 
+  """Lista produtos de forma paginada para vitrines e telas administrativas."""
+  produtosPaginados(
+    """Pagina desejada, iniciando em zero."""
+    page: Int = 0,
+
+    """Quantidade de produtos por pagina."""
+    size: Int = 12
+  ): ProdutoPage!
+
   """Busca um produto por identificador."""
   produto(
     """Identificador do produto."""
@@ -222,8 +276,29 @@ type Query {
     clienteId: ID!
   ): [Pedido!]!
 
+  """Lista pedidos de um cliente de forma paginada."""
+  pedidosPorClientePaginado(
+    """Identificador do cliente."""
+    clienteId: ID!,
+
+    """Pagina desejada, iniciando em zero."""
+    page: Int = 0,
+
+    """Quantidade de pedidos por pagina."""
+    size: Int = 5
+  ): PedidoPage!
+
   """Retorna indicadores agregados de vendas para o dashboard."""
-  resumoVendas: ResumoVendas!
+  resumoVendas(
+    """Quantidade de produtos no ranking."""
+    limit: Int = 12
+  ): ResumoVendas!
+
+  """Retorna produtos com os menores estoques."""
+  estoqueCritico(
+    """Quantidade de produtos retornados."""
+    limit: Int = 12
+  ): [Produto!]!
 }
 
 """

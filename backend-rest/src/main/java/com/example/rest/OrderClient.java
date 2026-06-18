@@ -25,6 +25,10 @@ public class OrderClient {
         return Arrays.asList(httpClient.get("/pedidos", ApiTypes.PedidoResponse[].class));
     }
 
+    public ApiTypes.PedidoPageResponse listarPedidosPaginados(int page, int size) {
+        return httpClient.get("/pedidos/paginados?page=" + page + "&size=" + size, ApiTypes.PedidoPageResponse.class);
+    }
+
     public ApiTypes.PedidoResponse buscarPedido(Long id) {
         return httpClient.get("/pedidos/" + id, ApiTypes.PedidoResponse.class);
     }
@@ -33,8 +37,19 @@ public class OrderClient {
         return Arrays.asList(httpClient.get("/clientes/" + clienteId + "/pedidos", ApiTypes.PedidoResponse[].class));
     }
 
+    public ApiTypes.PedidoPageResponse listarPedidosPorClientePaginados(Long clienteId, int page, int size) {
+        return httpClient.get(
+                "/clientes/" + clienteId + "/pedidos/paginados?page=" + page + "&size=" + size,
+                ApiTypes.PedidoPageResponse.class
+        );
+    }
+
     public List<ApiTypes.ItemPedidoResponse> listarItensDoPedido(Long pedidoId) {
         return Arrays.asList(httpClient.get("/pedidos/" + pedidoId + "/itens", ApiTypes.ItemPedidoResponse[].class));
+    }
+
+    public ResumoVendasInternoResponse resumoVendas(int limit) {
+        return httpClient.get("/vendas/resumo?limit=" + limit, ResumoVendasInternoResponse.class);
     }
 
     public ApiTypes.PedidoResponse criarPedido(PedidoInternoRequest request) {
@@ -59,6 +74,21 @@ public class OrderClient {
             BigDecimal total,
             int quantidadeItens,
             List<ApiTypes.ItemPedidoResponse> itens
+    ) {
+    }
+
+    public record ProdutoVendidoInternoResponse(
+            Long produtoId,
+            int quantidadeVendida,
+            BigDecimal faturamento
+    ) {
+    }
+
+    public record ResumoVendasInternoResponse(
+            long totalPedidos,
+            BigDecimal faturamentoTotal,
+            BigDecimal ticketMedio,
+            List<ProdutoVendidoInternoResponse> produtosMaisVendidos
     ) {
     }
 }

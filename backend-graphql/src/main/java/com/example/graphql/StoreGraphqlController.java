@@ -21,6 +21,14 @@ public class StoreGraphqlController {
     }
 
     @QueryMapping
+    public GqlTypes.ProdutoPagePayload produtosPaginados(
+            @Argument Integer page,
+            @Argument Integer size
+    ) {
+        return service.produtosPaginados(page, size);
+    }
+
+    @QueryMapping
     public GqlTypes.ProdutoPayload produto(@Argument Long id) {
         return service.produto(id);
     }
@@ -41,8 +49,22 @@ public class StoreGraphqlController {
     }
 
     @QueryMapping
-    public GqlTypes.ResumoVendasPayload resumoVendas() {
-        return service.resumoVendas();
+    public GqlTypes.PedidoPagePayload pedidosPorClientePaginado(
+            @Argument Long clienteId,
+            @Argument Integer page,
+            @Argument Integer size
+    ) {
+        return service.pedidosPorClientePaginado(clienteId, page, size);
+    }
+
+    @QueryMapping
+    public GqlTypes.ResumoVendasPayload resumoVendas(@Argument Integer limit) {
+        return service.resumoVendas(limit);
+    }
+
+    @QueryMapping
+    public List<GqlTypes.ProdutoPayload> estoqueCritico(@Argument Integer limit) {
+        return service.estoqueCritico(limit);
     }
 
     @MutationMapping
@@ -81,4 +103,3 @@ public class StoreGraphqlController {
         return service.atualizarStatusPedido(id, status);
     }
 }
-

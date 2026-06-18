@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="Esporte">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f2f8e8"/>
+      <stop offset="1" stop-color="#d9efb7"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="34" fill="url(#bg)"/>
+  <circle cx="114" cy="96" r="70" fill="#ffffff" opacity=".58"/>
+  <circle cx="514" cy="326" r="92" fill="#91be4a" opacity=".22"/>
+  <circle cx="306" cy="222" r="104" fill="#ffffff"/>
+  <path d="M306 118c44 30 74 66 98 104-26 38-58 70-98 104-40-34-72-66-98-104 24-38 54-74 98-104z" fill="#2f4f36"/>
+  <path d="M208 222h196M306 118v208" stroke="#ffffff" stroke-width="18" stroke-linecap="round" opacity=".9"/>
+  <rect x="110" y="292" width="120" height="34" rx="17" fill="#44694a"/>
+  <rect x="382" y="292" width="120" height="34" rx="17" fill="#44694a"/>
+  <rect x="148" y="258" width="44" height="102" rx="18" fill="#87b14a"/>
+  <rect x="420" y="258" width="44" height="102" rx="18" fill="#87b14a"/>
+</svg>

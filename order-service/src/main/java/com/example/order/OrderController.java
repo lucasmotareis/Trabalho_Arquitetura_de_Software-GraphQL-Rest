@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,6 +33,15 @@ public class OrderController {
         return service.listarPedidos();
     }
 
+    @GetMapping("/pedidos/paginados")
+    public OrderTypes.PedidoPageResponse listarPedidosPaginados(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "false") boolean includeItens
+    ) {
+        return service.listarPedidosPaginados(page, size, includeItens);
+    }
+
     @GetMapping("/pedidos/{id}")
     public OrderTypes.PedidoResponse buscarPedido(@PathVariable Long id) {
         return service.buscarPedido(id);
@@ -42,9 +52,24 @@ public class OrderController {
         return service.listarPedidosPorCliente(clienteId);
     }
 
+    @GetMapping("/clientes/{clienteId}/pedidos/paginados")
+    public OrderTypes.PedidoPageResponse listarPedidosPorClientePaginados(
+            @PathVariable Long clienteId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(defaultValue = "false") boolean includeItens
+    ) {
+        return service.listarPedidosPorClientePaginados(clienteId, page, size, includeItens);
+    }
+
     @GetMapping("/pedidos/{id}/itens")
     public List<OrderTypes.ItemPedidoResponse> listarItensDoPedido(@PathVariable Long id) {
         return service.listarItensDoPedido(id);
+    }
+
+    @GetMapping("/vendas/resumo")
+    public OrderTypes.ResumoVendasResponse resumoVendas(@RequestParam(defaultValue = "12") int limit) {
+        return service.resumoVendas(limit);
     }
 
     @PostMapping("/pedidos")

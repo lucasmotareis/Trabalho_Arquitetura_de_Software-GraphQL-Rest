@@ -25,12 +25,30 @@ public class OrderClient {
         return Arrays.asList(httpClient.get("/pedidos", PedidoResponse[].class));
     }
 
+    public PedidoPageResponse listarPedidosPaginados(int page, int size, boolean includeItens) {
+        return httpClient.get(
+                "/pedidos/paginados?page=" + page + "&size=" + size + "&includeItens=" + includeItens,
+                PedidoPageResponse.class
+        );
+    }
+
     public PedidoResponse buscarPedido(Long id) {
         return httpClient.get("/pedidos/" + id, PedidoResponse.class);
     }
 
     public List<PedidoResponse> listarPedidosPorCliente(Long clienteId) {
         return Arrays.asList(httpClient.get("/clientes/" + clienteId + "/pedidos", PedidoResponse[].class));
+    }
+
+    public PedidoPageResponse listarPedidosPorClientePaginados(Long clienteId, int page, int size, boolean includeItens) {
+        return httpClient.get(
+                "/clientes/" + clienteId + "/pedidos/paginados?page=" + page + "&size=" + size + "&includeItens=" + includeItens,
+                PedidoPageResponse.class
+        );
+    }
+
+    public ResumoVendasInternoResponse resumoVendas(int limit) {
+        return httpClient.get("/vendas/resumo?limit=" + limit, ResumoVendasInternoResponse.class);
     }
 
     public PedidoResponse criarPedido(PedidoInternoRequest request) {
@@ -61,6 +79,17 @@ public class OrderClient {
     ) {
     }
 
+    public record PedidoPageResponse(
+            List<PedidoResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last
+    ) {
+    }
+
     public record ItemPedidoResponse(
             Long id,
             Long pedidoId,
@@ -68,6 +97,21 @@ public class OrderClient {
             int quantidade,
             BigDecimal precoUnitario,
             BigDecimal subtotal
+    ) {
+    }
+
+    public record ProdutoVendidoInternoResponse(
+            Long produtoId,
+            int quantidadeVendida,
+            BigDecimal faturamento
+    ) {
+    }
+
+    public record ResumoVendasInternoResponse(
+            long totalPedidos,
+            BigDecimal faturamentoTotal,
+            BigDecimal ticketMedio,
+            List<ProdutoVendidoInternoResponse> produtosMaisVendidos
     ) {
     }
 }

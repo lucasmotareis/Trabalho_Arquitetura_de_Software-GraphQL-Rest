@@ -44,6 +44,22 @@ public final class GqlTypes {
     ) {
     }
 
+    public record PageInfoPayload(
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last
+    ) {
+    }
+
+    public record ProdutoPagePayload(
+            List<ProdutoPayload> content,
+            PageInfoPayload pageInfo
+    ) {
+    }
+
     public record ClienteResumoPayload(
             Long id,
             String nome,
@@ -81,6 +97,12 @@ public final class GqlTypes {
     ) {
     }
 
+    public record PedidoPagePayload(
+            List<PedidoPayload> content,
+            PageInfoPayload pageInfo
+    ) {
+    }
+
     public record ProdutoMaisVendidoPayload(
             ProdutoPayload produto,
             int quantidadeVendida,
@@ -96,4 +118,3 @@ public final class GqlTypes {
     ) {
     }
 }
-

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="Livros">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff1f2"/>
+      <stop offset="1" stop-color="#ffd8dd"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="34" fill="url(#bg)"/>
+  <circle cx="520" cy="102" r="78" fill="#ffffff" opacity=".58"/>
+  <circle cx="118" cy="326" r="88" fill="#e76f83" opacity=".2"/>
+  <rect x="156" y="118" width="86" height="230" rx="14" fill="#355070"/>
+  <rect x="252" y="92" width="92" height="256" rx="14" fill="#e56b6f"/>
+  <rect x="354" y="138" width="82" height="210" rx="14" fill="#6d597a"/>
+  <rect x="446" y="174" width="52" height="174" rx="12" fill="#f4a261"/>
+  <path d="M174 172h50M174 306h50M272 152h52M272 288h52M372 196h44M372 310h44" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity=".75"/>
+  <rect x="130" y="348" width="392" height="26" rx="13" fill="#8d5c67"/>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="Games">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#eaf7f7"/>
+      <stop offset="1" stop-color="#c9efea"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="420" rx="34" fill="url(#bg)"/>
+  <circle cx="112" cy="98" r="68" fill="#ffffff" opacity=".6"/>
+  <circle cx="518" cy="320" r="92" fill="#3bb6a3" opacity=".22"/>
+  <path d="M188 178h264c54 0 94 44 94 100 0 46-28 76-64 76-30 0-46-22-62-48H220c-16 26-32 48-62 48-36 0-64-30-64-76 0-56 40-100 94-100z" fill="#263842"/>
+  <circle cx="438" cy="238" r="18" fill="#ff6b6b"/>
+  <circle cx="482" cy="278" r="18" fill="#ffd166"/>
+  <circle cx="482" cy="198" r="18" fill="#6be2c1"/>
+  <circle cx="526" cy="238" r="18" fill="#62a6ff"/>
+  <path d="M172 240h78M211 201v78" stroke="#e8f5f5" stroke-width="22" stroke-linecap="round"/>
+  <rect x="286" y="224" width="76" height="24" rx="12" fill="#647780"/>
+</svg>

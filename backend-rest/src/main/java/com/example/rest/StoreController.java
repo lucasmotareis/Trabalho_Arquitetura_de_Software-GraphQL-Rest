@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -41,6 +42,16 @@ public class StoreController {
     @Operation(summary = "Lista produtos", description = "Retorna todos os produtos cadastrados no banco H2 de demonstracao.")
     public List<ApiTypes.ProdutoResponse> listarProdutos() {
         return service.listarProdutos();
+    }
+
+    @GetMapping("/produtos/paginados")
+    @Tag(name = "Produtos")
+    @Operation(summary = "Lista produtos paginados", description = "Retorna apenas uma pagina do catalogo, reduzindo payload e chamadas internas de estoque.")
+    public ApiTypes.ProdutoPageResponse listarProdutosPaginados(
+            @Parameter(description = "Pagina desejada, iniciando em zero.", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Quantidade de produtos por pagina.", example = "12") @RequestParam(defaultValue = "12") int size
+    ) {
+        return service.listarProdutosPaginados(page, size);
     }
 
     @GetMapping("/produtos/{id}")
@@ -157,11 +168,32 @@ public class StoreController {
         return service.listarPedidosPorCliente(id);
     }
 
+    @GetMapping("/clientes/{id}/pedidos/paginados")
+    @Tag(name = "Pedidos")
+    @Operation(summary = "Lista pedidos paginados de um cliente", description = "Versao paginada para historico de compras e analise de cliente.")
+    public ApiTypes.PedidoPageResponse listarPedidosPorClientePaginados(
+            @Parameter(description = "ID do cliente", example = "1") @PathVariable Long id,
+            @Parameter(description = "Pagina desejada, iniciando em zero.", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Quantidade de pedidos por pagina.", example = "5") @RequestParam(defaultValue = "5") int size
+    ) {
+        return service.listarPedidosPorClientePaginados(id, page, size);
+    }
+
     @GetMapping("/pedidos")
     @Tag(name = "Pedidos")
     @Operation(summary = "Lista pedidos", description = "Retorna resumos de todos os pedidos.")
     public List<ApiTypes.PedidoResponse> listarPedidos() {
         return service.listarPedidos();
+    }
+
+    @GetMapping("/pedidos/paginados")
+    @Tag(name = "Pedidos")
+    @Operation(summary = "Lista pedidos paginados", description = "Retorna resumos de pedidos com page/size para evitar payloads grandes.")
+    public ApiTypes.PedidoPageResponse listarPedidosPaginados(
+            @Parameter(description = "Pagina desejada, iniciando em zero.", example = "0") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Quantidade de pedidos por pagina.", example = "10") @RequestParam(defaultValue = "10") int size
+    ) {
+        return service.listarPedidosPaginados(page, size);
     }
 
     @GetMapping("/pedidos/{id}")
@@ -183,6 +215,24 @@ public class StoreController {
             @Parameter(description = "ID do pedido", example = "1") @PathVariable Long id
     ) {
         return service.listarItensDoPedido(id);
+    }
+
+    @GetMapping("/resumo-vendas")
+    @Tag(name = "Pedidos")
+    @Operation(summary = "Resumo agregado de vendas", description = "Retorna indicadores consolidados calculados pelo order-service.")
+    public ApiTypes.ResumoVendasResponse resumoVendas(
+            @Parameter(description = "Quantidade de produtos no ranking.", example = "12") @RequestParam(defaultValue = "12") int limit
+    ) {
+        return service.resumoVendas(limit);
+    }
+
+    @GetMapping("/estoque-critico")
+    @Tag(name = "Produtos")
+    @Operation(summary = "Lista produtos com estoque critico", description = "Consulta o inventory-service para retornar apenas os menores estoques.")
+    public List<ApiTypes.ProdutoResponse> estoqueCritico(
+            @Parameter(description = "Quantidade de produtos retornados.", example = "12") @RequestParam(defaultValue = "12") int limit
+    ) {
+        return service.estoqueCritico(limit);
     }
 
     @PostMapping("/pedidos")

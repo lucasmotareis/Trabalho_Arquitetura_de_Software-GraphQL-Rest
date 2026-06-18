@@ -1,18 +1,21 @@
 package com.example.graphql;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class StoreService {
+    private static final int MAX_PAGE_SIZE = 50;
+
     private final ProdutoRepository produtoRepository;
     private final ClienteRepository clienteRepository;
     private final OrderClient orderClient;
@@ -37,6 +40,22 @@ public class StoreService {
         return produtos.stream()
                 .map(produto -> toProdutoPayload(produto, estoques.getOrDefault(produto.getId(), 0)))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public GqlTypes.ProdutoPagePayload produtosPaginados(Integer page, Integer size) {
+        Page<Produto> produtos = produtoRepository.findAll(PageRequest.of(
+                safePage(page),
+                safeSize(size, 12),
+                Sort.by(Sort.Direction.ASC, "id")
+        ));
+        Map<Long, Integer> estoques = estoquesPorProduto(produtos.getContent().stream().map(Produto::getId).toList());
+        return new GqlTypes.ProdutoPagePayload(
+                produtos.getContent().stream()
+                        .map(produto -> toProdutoPayload(produto, estoques.getOrDefault(produto.getId(), 0)))
+                        .toList(),
+                toPageInfo(produtos)
+        );
     }
 
     @Transactional(readOnly = true)
@@ -81,42 +100,69 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
-    public GqlTypes.ResumoVendasPayload resumoVendas() {
-        List<OrderClient.PedidoResponse> pedidos = orderClient.listarPedidos();
-        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(pedidos));
-        double faturamentoTotal = pedidos.stream()
-                .map(OrderClient.PedidoResponse::total)
-                .mapToDouble(BigDecimal::doubleValue)
-                .sum();
+    public GqlTypes.PedidoPagePayload pedidosPorClientePaginado(Long clienteId, Integer page, Integer size) {
+        Cliente cliente = findCliente(clienteId);
+        OrderClient.PedidoPageResponse pedidos = orderClient.listarPedidosPorClientePaginados(
+                clienteId,
+                safePage(page),
+                safeSize(size, 5),
+                true
+        );
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(pedidos.content()));
+        return new GqlTypes.PedidoPagePayload(
+                pedidos.content().stream()
+                        .map(pedido -> toPedidoPayload(pedido, cliente, produtos))
+                        .toList(),
+                new GqlTypes.PageInfoPayload(
+                        pedidos.page(),
+                        pedidos.size(),
+                        pedidos.totalElements(),
+                        pedidos.totalPages(),
+                        pedidos.first(),
+                        pedidos.last()
+                )
+        );
+    }
 
-        Map<Long, ProdutoVendido> vendidos = new HashMap<>();
-        for (OrderClient.PedidoResponse pedido : pedidos) {
-            for (OrderClient.ItemPedidoResponse item : pedido.itens()) {
-                GqlTypes.ProdutoPayload produto = produtos.get(item.produtoId());
-                ProdutoVendido acumulado = vendidos.computeIfAbsent(
-                        item.produtoId(),
-                        ignored -> new ProdutoVendido(produto, 0, 0.0)
-                );
-                acumulado.quantidade += item.quantidade();
-                acumulado.faturamento += item.subtotal().doubleValue();
-            }
-        }
-
-        List<GqlTypes.ProdutoMaisVendidoPayload> produtosMaisVendidos = vendidos.values().stream()
-                .sorted(Comparator.comparingInt(ProdutoVendido::quantidade).reversed())
-                .map(produtoVendido -> new GqlTypes.ProdutoMaisVendidoPayload(
-                        produtoVendido.produto,
-                        produtoVendido.quantidade,
-                        produtoVendido.faturamento
+    @Transactional(readOnly = true)
+    public GqlTypes.ResumoVendasPayload resumoVendas(Integer limit) {
+        OrderClient.ResumoVendasInternoResponse resumo = orderClient.resumoVendas(safeLimit(limit));
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(
+                resumo.produtosMaisVendidos().stream()
+                        .map(OrderClient.ProdutoVendidoInternoResponse::produtoId)
+                        .toList()
+        );
+        List<GqlTypes.ProdutoMaisVendidoPayload> produtosMaisVendidos = resumo.produtosMaisVendidos().stream()
+                .map(item -> new GqlTypes.ProdutoMaisVendidoPayload(
+                        produtos.get(item.produtoId()),
+                        item.quantidadeVendida(),
+                        item.faturamento().doubleValue()
                 ))
+                .filter(item -> item.produto() != null)
                 .toList();
-
         return new GqlTypes.ResumoVendasPayload(
-                pedidos.size(),
-                faturamentoTotal,
-                pedidos.isEmpty() ? 0.0 : faturamentoTotal / pedidos.size(),
+                (int) resumo.totalPedidos(),
+                resumo.faturamentoTotal().doubleValue(),
+                resumo.ticketMedio().doubleValue(),
                 produtosMaisVendidos
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<GqlTypes.ProdutoPayload> estoqueCritico(Integer limit) {
+        List<InventoryClient.EstoqueResponse> estoques = inventoryClient.listarCriticos(safeLimit(limit));
+        Map<Long, Produto> produtos = produtoRepository.findAllById(
+                        estoques.stream().map(InventoryClient.EstoqueResponse::produtoId).toList()
+                )
+                .stream()
+                .collect(Collectors.toMap(Produto::getId, produto -> produto));
+        return estoques.stream()
+                .map(estoque -> {
+                    Produto produto = produtos.get(estoque.produtoId());
+                    return produto == null ? null : toProdutoPayload(produto, estoque.quantidade());
+                })
+                .filter(produto -> produto != null)
+                .toList();
     }
 
     @Transactional
@@ -291,6 +337,17 @@ public class StoreService {
         );
     }
 
+    private GqlTypes.PageInfoPayload toPageInfo(Page<?> page) {
+        return new GqlTypes.PageInfoPayload(
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
+    }
+
     private String requiredText(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " e obrigatorio.");
@@ -319,19 +376,22 @@ public class StoreService {
         return value;
     }
 
-    private static final class ProdutoVendido {
-        private final GqlTypes.ProdutoPayload produto;
-        private int quantidade;
-        private double faturamento;
-
-        private ProdutoVendido(GqlTypes.ProdutoPayload produto, int quantidade, double faturamento) {
-            this.produto = produto;
-            this.quantidade = quantidade;
-            this.faturamento = faturamento;
-        }
-
-        private int quantidade() {
-            return quantidade;
-        }
+    private int safePage(Integer page) {
+        return page == null || page < 0 ? 0 : page;
     }
+
+    private int safeSize(Integer size, int defaultSize) {
+        if (size == null || size <= 0) {
+            return defaultSize;
+        }
+        return Math.min(size, MAX_PAGE_SIZE);
+    }
+
+    private int safeLimit(Integer limit) {
+        if (limit == null || limit <= 0) {
+            return 12;
+        }
+        return Math.min(limit, MAX_PAGE_SIZE);
+    }
+
 }
