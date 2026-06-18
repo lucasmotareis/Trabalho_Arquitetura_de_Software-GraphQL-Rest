@@ -53,6 +53,40 @@ No Windows, tambem e possivel iniciar o build estatico com:
 .\frontend\start-frontend.cmd
 ```
 
+## Deploy com Docker Compose / Coolify
+
+O projeto tambem possui `docker-compose.yml` para deploy em VPS/Coolify.
+
+Servicos:
+
+- `backend-rest`: Spring Boot REST na porta interna `8081`;
+- `backend-graphql`: Spring Boot GraphQL na porta interna `8082`;
+- `frontend`: React buildado e servido por Nginx na porta interna `80`.
+
+Em ambiente local:
+
+```powershell
+docker compose up --build
+```
+
+No Coolify, configure os dominios de cada servico e informe as URLs publicas no build do frontend:
+
+```text
+APP_CORS_ALLOWED_ORIGINS=https://SEU-DOMINIO-FRONTEND
+VITE_REST_API_URL=https://SEU-DOMINIO-REST/api
+VITE_GRAPHQL_API_URL=https://SEU-DOMINIO-GRAPHQL/graphql
+```
+
+Exemplo:
+
+```text
+APP_CORS_ALLOWED_ORIGINS=https://trabalho.seudominio.com.br
+VITE_REST_API_URL=https://trabalho-rest.seudominio.com.br/api
+VITE_GRAPHQL_API_URL=https://trabalho-graphql.seudominio.com.br/graphql
+```
+
+Como o Vite injeta essas variaveis no build, altere esses valores antes de gerar a imagem do frontend.
+
 ## Endpoints principais
 
 REST:

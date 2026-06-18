@@ -1,5 +1,5 @@
-const REST_BASE_URL = "http://localhost:8081/api";
-const GRAPHQL_URL = "http://localhost:8082/graphql";
+const REST_BASE_URL = import.meta.env.VITE_REST_API_URL ?? "http://localhost:8081/api";
+const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_API_URL ?? "http://localhost:8082/graphql";
 
 const encoder = new TextEncoder();
 
