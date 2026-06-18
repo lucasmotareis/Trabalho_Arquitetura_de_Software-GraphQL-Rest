@@ -1,0 +1,265 @@
+"""
+Produto disponivel no catalogo da loja virtual.
+"""
+type Produto {
+  """Identificador unico do produto."""
+  id: ID!
+
+  """Nome comercial exibido no catalogo."""
+  nome: String!
+
+  """Descricao curta do produto."""
+  descricao: String!
+
+  """Categoria usada para agrupamento e filtros."""
+  categoria: String!
+
+  """Preco unitario atual do produto."""
+  preco: Float!
+
+  """Quantidade disponivel em estoque."""
+  estoque: Int!
+}
+
+"""
+Dados essenciais de cliente usados quando o cliente aparece dentro de um pedido.
+"""
+type ClienteResumo {
+  """Identificador unico do cliente."""
+  id: ID!
+
+  """Nome completo do cliente."""
+  nome: String!
+
+  """Email de contato do cliente."""
+  email: String!
+
+  """Cidade cadastrada para o cliente."""
+  cidade: String!
+}
+
+"""
+Cliente completo com os pedidos relacionados.
+"""
+type Cliente {
+  """Identificador unico do cliente."""
+  id: ID!
+
+  """Nome completo do cliente."""
+  nome: String!
+
+  """Email de contato do cliente."""
+  email: String!
+
+  """Cidade cadastrada para o cliente."""
+  cidade: String!
+
+  """Pedidos associados ao cliente em uma unica consulta composta."""
+  pedidos: [Pedido!]!
+}
+
+"""
+Item comprado dentro de um pedido, incluindo o produto relacionado.
+"""
+type ItemPedido {
+  """Identificador unico do item do pedido."""
+  id: ID!
+
+  """Quantidade comprada do produto."""
+  quantidade: Int!
+
+  """Preco unitario registrado no momento da compra."""
+  precoUnitario: Float!
+
+  """Valor total do item: quantidade multiplicada pelo preco unitario."""
+  subtotal: Float!
+
+  """Produto comprado neste item."""
+  produto: Produto!
+}
+
+"""
+Pedido completo com cliente e itens relacionados.
+"""
+type Pedido {
+  """Identificador unico do pedido."""
+  id: ID!
+
+  """Status atual do pedido, como CRIADO, PAGO, ENVIADO ou CANCELADO."""
+  status: String!
+
+  """Data e hora de criacao no formato ISO-8601."""
+  criadoEm: String!
+
+  """Valor total do pedido."""
+  total: Float!
+
+  """Soma das quantidades de todos os itens do pedido."""
+  quantidadeItens: Int!
+
+  """Cliente comprador em formato resumido."""
+  cliente: ClienteResumo!
+
+  """Itens do pedido com os produtos relacionados."""
+  itens: [ItemPedido!]!
+}
+
+"""
+Produto ranqueado no resumo de vendas.
+"""
+type ProdutoMaisVendido {
+  """Produto vendido."""
+  produto: Produto!
+
+  """Quantidade total de unidades vendidas."""
+  quantidadeVendida: Int!
+
+  """Faturamento gerado por este produto."""
+  faturamento: Float!
+}
+
+"""
+Indicadores agregados usados no dashboard comparativo.
+"""
+type ResumoVendas {
+  """Quantidade total de pedidos cadastrados."""
+  totalPedidos: Int!
+
+  """Faturamento total somando todos os pedidos."""
+  faturamentoTotal: Float!
+
+  """Valor medio dos pedidos."""
+  ticketMedio: Float!
+
+  """Produtos com maior quantidade vendida."""
+  produtosMaisVendidos: [ProdutoMaisVendido!]!
+}
+
+"""
+Dados necessarios para criar ou atualizar um produto.
+"""
+input ProdutoInput {
+  """Nome comercial do produto."""
+  nome: String!
+
+  """Descricao curta exibida no catalogo."""
+  descricao: String!
+
+  """Categoria do produto."""
+  categoria: String!
+
+  """Preco unitario do produto."""
+  preco: Float!
+
+  """Quantidade disponivel em estoque."""
+  estoque: Int!
+}
+
+"""
+Dados necessarios para criar um cliente.
+"""
+input ClienteInput {
+  """Nome completo do cliente."""
+  nome: String!
+
+  """Email de contato do cliente."""
+  email: String!
+
+  """Cidade cadastrada para o cliente."""
+  cidade: String!
+}
+
+"""
+Item informado na criacao de um pedido.
+"""
+input PedidoItemInput {
+  """Identificador do produto comprado."""
+  produtoId: ID!
+
+  """Quantidade comprada do produto."""
+  quantidade: Int!
+}
+
+"""
+Dados necessarios para criar um pedido.
+"""
+input PedidoInput {
+  """Identificador do cliente comprador."""
+  clienteId: ID!
+
+  """Lista de produtos e quantidades compradas."""
+  itens: [PedidoItemInput!]!
+}
+
+"""
+Pontos de leitura da API GraphQL. As queries permitem selecionar somente os campos necessarios.
+"""
+type Query {
+  """Lista todos os produtos do catalogo."""
+  produtos: [Produto!]!
+
+  """Busca um produto por identificador."""
+  produto(
+    """Identificador do produto."""
+    id: ID!
+  ): Produto
+
+  """Busca um cliente com seus pedidos relacionados."""
+  cliente(
+    """Identificador do cliente."""
+    id: ID!
+  ): Cliente
+
+  """Busca um pedido completo com cliente, itens e produtos."""
+  pedido(
+    """Identificador do pedido."""
+    id: ID!
+  ): Pedido
+
+  """Lista os pedidos de um cliente com dados relacionados."""
+  pedidosPorCliente(
+    """Identificador do cliente."""
+    clienteId: ID!
+  ): [Pedido!]!
+
+  """Retorna indicadores agregados de vendas para o dashboard."""
+  resumoVendas: ResumoVendas!
+}
+
+"""
+Pontos de escrita da API GraphQL usados para demonstrar operacoes equivalentes ao REST.
+"""
+type Mutation {
+  """Cria um novo produto no catalogo."""
+  criarProduto(input: ProdutoInput!): Produto!
+
+  """Atualiza os dados principais de um produto existente."""
+  atualizarProduto(
+    """Identificador do produto."""
+    id: ID!,
+
+    """Novos dados do produto."""
+    input: ProdutoInput!
+  ): Produto!
+
+  """Remove um produto pelo identificador."""
+  removerProduto(
+    """Identificador do produto."""
+    id: ID!
+  ): Boolean!
+
+  """Cria um novo cliente."""
+  criarCliente(input: ClienteInput!): ClienteResumo!
+
+  """Cria um pedido com um ou mais itens."""
+  criarPedido(input: PedidoInput!): Pedido!
+
+  """Atualiza o status de um pedido."""
+  atualizarStatusPedido(
+    """Identificador do pedido."""
+    id: ID!,
+
+    """Novo status do pedido."""
+    status: String!
+  ): Pedido!
+}
