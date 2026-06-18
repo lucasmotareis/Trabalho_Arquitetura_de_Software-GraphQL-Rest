@@ -85,7 +85,15 @@ VITE_REST_API_URL=https://trabalho-rest.seudominio.com.br/api
 VITE_GRAPHQL_API_URL=https://trabalho-graphql.seudominio.com.br/graphql
 ```
 
-Como o Vite injeta essas variaveis no build, altere esses valores antes de gerar a imagem do frontend.
+Para os dominios usados na VPS:
+
+```text
+APP_CORS_ALLOWED_ORIGINS=https://trabalho.pmto8bpm.com.br
+VITE_REST_API_URL=https://trabalho-rest.pmto8bpm.com.br/api
+VITE_GRAPHQL_API_URL=https://trabalho-graphql.pmto8bpm.com.br/graphql
+```
+
+Como o Vite injeta essas variaveis no build, altere esses valores antes de gerar a imagem do frontend e mande o Coolify reconstruir a imagem. Se informar apenas o dominio, como `https://trabalho-rest.pmto8bpm.com.br`, o frontend completa `/api` automaticamente.
 
 ## Endpoints principais
 

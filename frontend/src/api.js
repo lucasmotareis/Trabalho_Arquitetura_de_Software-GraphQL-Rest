@@ -1,5 +1,19 @@
-const REST_BASE_URL = import.meta.env.VITE_REST_API_URL ?? "http://localhost:8081/api";
-const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_API_URL ?? "http://localhost:8082/graphql";
+function withoutTrailingSlash(value) {
+  return value.replace(/\/+$/, "");
+}
+
+function normalizeRestUrl(value) {
+  const baseUrl = withoutTrailingSlash(value ?? "http://localhost:8081/api");
+  return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
+}
+
+function normalizeGraphqlUrl(value) {
+  const baseUrl = withoutTrailingSlash(value ?? "http://localhost:8082/graphql");
+  return baseUrl.endsWith("/graphql") ? baseUrl : `${baseUrl}/graphql`;
+}
+
+const REST_BASE_URL = normalizeRestUrl(import.meta.env.VITE_REST_API_URL);
+const GRAPHQL_URL = normalizeGraphqlUrl(import.meta.env.VITE_GRAPHQL_API_URL);
 
 const encoder = new TextEncoder();
 
