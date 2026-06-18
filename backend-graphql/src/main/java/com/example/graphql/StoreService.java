@@ -4,93 +4,108 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class StoreService {
     private final ProdutoRepository produtoRepository;
     private final ClienteRepository clienteRepository;
-    private final PedidoRepository pedidoRepository;
+    private final OrderClient orderClient;
+    private final InventoryClient inventoryClient;
 
     public StoreService(
             ProdutoRepository produtoRepository,
             ClienteRepository clienteRepository,
-            PedidoRepository pedidoRepository
+            OrderClient orderClient,
+            InventoryClient inventoryClient
     ) {
         this.produtoRepository = produtoRepository;
         this.clienteRepository = clienteRepository;
-        this.pedidoRepository = pedidoRepository;
+        this.orderClient = orderClient;
+        this.inventoryClient = inventoryClient;
     }
 
     @Transactional(readOnly = true)
     public List<GqlTypes.ProdutoPayload> produtos() {
-        return produtoRepository.findAll().stream().map(this::toProdutoPayload).toList();
+        List<Produto> produtos = produtoRepository.findAll();
+        Map<Long, Integer> estoques = estoquesPorProduto(produtos.stream().map(Produto::getId).toList());
+        return produtos.stream()
+                .map(produto -> toProdutoPayload(produto, estoques.getOrDefault(produto.getId(), 0)))
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public GqlTypes.ProdutoPayload produto(Long id) {
-        return toProdutoPayload(findProduto(id));
+        Produto produto = findProduto(id);
+        return toProdutoPayload(produto, inventoryClient.buscarQuantidade(produto.getId()));
     }
 
     @Transactional(readOnly = true)
     public GqlTypes.ClientePayload cliente(Long id) {
         Cliente cliente = findCliente(id);
-        List<GqlTypes.PedidoPayload> pedidos = pedidoRepository.findByClienteIdOrderByCriadoEmDesc(id).stream()
-                .map(this::toPedidoPayload)
+        List<OrderClient.PedidoResponse> pedidos = orderClient.listarPedidosPorCliente(id);
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(pedidos));
+        List<GqlTypes.PedidoPayload> pedidosPayload = pedidos.stream()
+                .map(pedido -> toPedidoPayload(pedido, cliente, produtos))
                 .toList();
         return new GqlTypes.ClientePayload(
                 cliente.getId(),
                 cliente.getNome(),
                 cliente.getEmail(),
                 cliente.getCidade(),
-                pedidos
+                pedidosPayload
         );
     }
 
     @Transactional(readOnly = true)
     public GqlTypes.PedidoPayload pedido(Long id) {
-        return toPedidoPayload(findPedido(id));
+        OrderClient.PedidoResponse pedido = orderClient.buscarPedido(id);
+        Cliente cliente = findCliente(pedido.clienteId());
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(List.of(pedido)));
+        return toPedidoPayload(pedido, cliente, produtos);
     }
 
     @Transactional(readOnly = true)
     public List<GqlTypes.PedidoPayload> pedidosPorCliente(Long clienteId) {
-        if (!clienteRepository.existsById(clienteId)) {
-            throw new ResourceNotFoundException("Cliente " + clienteId + " nao encontrado.");
-        }
-        return pedidoRepository.findByClienteIdOrderByCriadoEmDesc(clienteId).stream()
-                .map(this::toPedidoPayload)
+        Cliente cliente = findCliente(clienteId);
+        List<OrderClient.PedidoResponse> pedidos = orderClient.listarPedidosPorCliente(clienteId);
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(pedidos));
+        return pedidos.stream()
+                .map(pedido -> toPedidoPayload(pedido, cliente, produtos))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public GqlTypes.ResumoVendasPayload resumoVendas() {
-        List<Pedido> pedidos = pedidoRepository.findAll();
+        List<OrderClient.PedidoResponse> pedidos = orderClient.listarPedidos();
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(pedidos));
         double faturamentoTotal = pedidos.stream()
-                .map(Pedido::getTotal)
+                .map(OrderClient.PedidoResponse::total)
                 .mapToDouble(BigDecimal::doubleValue)
                 .sum();
 
         Map<Long, ProdutoVendido> vendidos = new HashMap<>();
-        for (Pedido pedido : pedidos) {
-            for (ItemPedido item : pedido.getItens()) {
-                Produto produto = item.getProduto();
+        for (OrderClient.PedidoResponse pedido : pedidos) {
+            for (OrderClient.ItemPedidoResponse item : pedido.itens()) {
+                GqlTypes.ProdutoPayload produto = produtos.get(item.produtoId());
                 ProdutoVendido acumulado = vendidos.computeIfAbsent(
-                        produto.getId(),
+                        item.produtoId(),
                         ignored -> new ProdutoVendido(produto, 0, 0.0)
                 );
-                acumulado.quantidade += item.getQuantidade();
-                acumulado.faturamento += item.getSubtotal().doubleValue();
+                acumulado.quantidade += item.quantidade();
+                acumulado.faturamento += item.subtotal().doubleValue();
             }
         }
 
         List<GqlTypes.ProdutoMaisVendidoPayload> produtosMaisVendidos = vendidos.values().stream()
                 .sorted(Comparator.comparingInt(ProdutoVendido::quantidade).reversed())
                 .map(produtoVendido -> new GqlTypes.ProdutoMaisVendidoPayload(
-                        toProdutoPayload(produtoVendido.produto),
+                        produtoVendido.produto,
                         produtoVendido.quantidade,
                         produtoVendido.faturamento
                 ))
@@ -110,10 +125,12 @@ public class StoreService {
                 requiredText(input.nome(), "Nome do produto"),
                 requiredText(input.descricao(), "Descricao do produto"),
                 requiredText(input.categoria(), "Categoria do produto"),
-                requiredMoney(input.preco()),
-                requiredPositiveOrZero(input.estoque(), "Estoque")
+                requiredMoney(input.preco())
         );
-        return toProdutoPayload(produtoRepository.save(produto));
+        Produto salvo = produtoRepository.save(produto);
+        int estoque = requiredPositiveOrZero(input.estoque(), "Estoque");
+        inventoryClient.definirQuantidade(salvo.getId(), estoque);
+        return toProdutoPayload(salvo, estoque);
     }
 
     @Transactional
@@ -123,8 +140,9 @@ public class StoreService {
         produto.setDescricao(requiredText(input.descricao(), "Descricao do produto"));
         produto.setCategoria(requiredText(input.categoria(), "Categoria do produto"));
         produto.setPreco(requiredMoney(input.preco()));
-        produto.setEstoque(requiredPositiveOrZero(input.estoque(), "Estoque"));
-        return toProdutoPayload(produto);
+        int estoque = requiredPositiveOrZero(input.estoque(), "Estoque");
+        inventoryClient.definirQuantidade(produto.getId(), estoque);
+        return toProdutoPayload(produto, estoque);
     }
 
     @Transactional
@@ -152,42 +170,95 @@ public class StoreService {
         if (input.itens() == null || input.itens().isEmpty()) {
             throw new IllegalArgumentException("Pedido deve possuir ao menos um item.");
         }
-
-        Pedido pedido = new Pedido(cliente, "CRIADO", LocalDateTime.now());
-        for (GqlTypes.PedidoItemInput itemInput : input.itens()) {
-            Produto produto = findProduto(itemInput.produtoId());
-            int quantidade = requiredPositive(itemInput.quantidade(), "Quantidade");
-            produto.baixarEstoque(quantidade);
-            pedido.adicionarItem(new ItemPedido(produto, quantidade, produto.getPreco()));
-        }
-        return toPedidoPayload(pedidoRepository.save(pedido));
+        List<OrderClient.PedidoItemInternoRequest> itens = input.itens().stream()
+                .map(item -> {
+                    Produto produto = findProduto(item.produtoId());
+                    int quantidade = requiredPositive(item.quantidade(), "Quantidade");
+                    return new OrderClient.PedidoItemInternoRequest(produto.getId(), quantidade, produto.getPreco());
+                })
+                .toList();
+        OrderClient.PedidoResponse pedido = orderClient.criarPedido(
+                new OrderClient.PedidoInternoRequest(input.clienteId(), itens)
+        );
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(List.of(pedido)));
+        return toPedidoPayload(pedido, cliente, produtos);
     }
 
     @Transactional
     public GqlTypes.PedidoPayload atualizarStatusPedido(Long id, String status) {
-        Pedido pedido = findPedido(id);
-        pedido.setStatus(requiredText(status, "Status do pedido").toUpperCase());
-        return toPedidoPayload(pedido);
+        OrderClient.PedidoResponse pedido = orderClient.atualizarStatus(id, new OrderClient.StatusRequest(status));
+        Cliente cliente = findCliente(pedido.clienteId());
+        Map<Long, GqlTypes.ProdutoPayload> produtos = produtosPayloadMap(produtoIds(List.of(pedido)));
+        return toPedidoPayload(pedido, cliente, produtos);
     }
 
-    Produto salvarProdutoSeed(String nome, String descricao, String categoria, BigDecimal preco, int estoque) {
-        return produtoRepository.save(new Produto(nome, descricao, categoria, preco, estoque));
+    boolean hasSeedData() {
+        return produtoRepository.count() > 0 || clienteRepository.count() > 0;
+    }
+
+    Produto salvarProdutoSeed(String nome, String descricao, String categoria, BigDecimal preco) {
+        return produtoRepository.save(new Produto(nome, descricao, categoria, preco));
     }
 
     Cliente salvarClienteSeed(String nome, String email, String cidade) {
         return clienteRepository.save(new Cliente(nome, email, cidade));
     }
 
-    GqlTypes.PedidoPayload criarPedidoSeed(Long clienteId, LocalDateTime criadoEm, String status, List<GqlTypes.PedidoItemInput> itens) {
-        Cliente cliente = findCliente(clienteId);
-        Pedido pedido = new Pedido(cliente, status, criadoEm);
-        for (GqlTypes.PedidoItemInput item : itens) {
-            Produto produto = findProduto(item.produtoId());
-            int quantidade = requiredPositive(item.quantidade(), "Quantidade");
-            produto.baixarEstoque(quantidade);
-            pedido.adicionarItem(new ItemPedido(produto, quantidade, produto.getPreco()));
+    private GqlTypes.PedidoPayload toPedidoPayload(
+            OrderClient.PedidoResponse pedido,
+            Cliente cliente,
+            Map<Long, GqlTypes.ProdutoPayload> produtos
+    ) {
+        List<GqlTypes.ItemPedidoPayload> itens = pedido.itens().stream()
+                .map(item -> toItemPedidoPayload(item, produtos.get(item.produtoId())))
+                .toList();
+        return new GqlTypes.PedidoPayload(
+                pedido.id(),
+                pedido.status(),
+                pedido.criadoEm().toString(),
+                pedido.total().doubleValue(),
+                pedido.quantidadeItens(),
+                toClienteResumoPayload(cliente),
+                itens
+        );
+    }
+
+    private GqlTypes.ItemPedidoPayload toItemPedidoPayload(
+            OrderClient.ItemPedidoResponse item,
+            GqlTypes.ProdutoPayload produto
+    ) {
+        return new GqlTypes.ItemPedidoPayload(
+                item.id(),
+                item.quantidade(),
+                item.precoUnitario().doubleValue(),
+                item.subtotal().doubleValue(),
+                produto
+        );
+    }
+
+    private Map<Long, GqlTypes.ProdutoPayload> produtosPayloadMap(Collection<Long> produtoIds) {
+        if (produtoIds == null || produtoIds.isEmpty()) {
+            return Map.of();
         }
-        return toPedidoPayload(pedidoRepository.save(pedido));
+        List<Long> uniqueIds = produtoIds.stream().distinct().toList();
+        List<Produto> produtos = produtoRepository.findAllById(uniqueIds);
+        Map<Long, Integer> estoques = estoquesPorProduto(uniqueIds);
+        return produtos.stream()
+                .map(produto -> toProdutoPayload(produto, estoques.getOrDefault(produto.getId(), 0)))
+                .collect(Collectors.toMap(GqlTypes.ProdutoPayload::id, produto -> produto));
+    }
+
+    private List<Long> produtoIds(List<OrderClient.PedidoResponse> pedidos) {
+        return pedidos.stream()
+                .flatMap(pedido -> pedido.itens().stream())
+                .map(OrderClient.ItemPedidoResponse::produtoId)
+                .distinct()
+                .toList();
+    }
+
+    private Map<Long, Integer> estoquesPorProduto(Collection<Long> produtoIds) {
+        return inventoryClient.listar(produtoIds).stream()
+                .collect(Collectors.toMap(InventoryClient.EstoqueResponse::produtoId, InventoryClient.EstoqueResponse::quantidade));
     }
 
     private Produto findProduto(Long id) {
@@ -200,19 +271,14 @@ public class StoreService {
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente " + id + " nao encontrado."));
     }
 
-    private Pedido findPedido(Long id) {
-        return pedidoRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Pedido " + id + " nao encontrado."));
-    }
-
-    private GqlTypes.ProdutoPayload toProdutoPayload(Produto produto) {
+    private GqlTypes.ProdutoPayload toProdutoPayload(Produto produto, int estoque) {
         return new GqlTypes.ProdutoPayload(
                 produto.getId(),
                 produto.getNome(),
                 produto.getDescricao(),
                 produto.getCategoria(),
                 produto.getPreco().doubleValue(),
-                produto.getEstoque()
+                estoque
         );
     }
 
@@ -222,31 +288,6 @@ public class StoreService {
                 cliente.getNome(),
                 cliente.getEmail(),
                 cliente.getCidade()
-        );
-    }
-
-    private GqlTypes.PedidoPayload toPedidoPayload(Pedido pedido) {
-        List<GqlTypes.ItemPedidoPayload> itens = pedido.getItens().stream()
-                .map(this::toItemPedidoPayload)
-                .toList();
-        return new GqlTypes.PedidoPayload(
-                pedido.getId(),
-                pedido.getStatus(),
-                pedido.getCriadoEm().toString(),
-                pedido.getTotal().doubleValue(),
-                pedido.getItens().stream().mapToInt(ItemPedido::getQuantidade).sum(),
-                toClienteResumoPayload(pedido.getCliente()),
-                itens
-        );
-    }
-
-    private GqlTypes.ItemPedidoPayload toItemPedidoPayload(ItemPedido item) {
-        return new GqlTypes.ItemPedidoPayload(
-                item.getId(),
-                item.getQuantidade(),
-                item.getPrecoUnitario().doubleValue(),
-                item.getSubtotal().doubleValue(),
-                toProdutoPayload(item.getProduto())
         );
     }
 
@@ -279,11 +320,11 @@ public class StoreService {
     }
 
     private static final class ProdutoVendido {
-        private final Produto produto;
+        private final GqlTypes.ProdutoPayload produto;
         private int quantidade;
         private double faturamento;
 
-        private ProdutoVendido(Produto produto, int quantidade, double faturamento) {
+        private ProdutoVendido(GqlTypes.ProdutoPayload produto, int quantidade, double faturamento) {
             this.produto = produto;
             this.quantidade = quantidade;
             this.faturamento = faturamento;

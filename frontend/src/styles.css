@@ -206,7 +206,7 @@ h2 {
 .metrics-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .metrics-grid.compact {
@@ -413,6 +413,45 @@ th {
   grid-column: 1 / -1;
 }
 
+.internal-trace {
+  background: #eef6f7;
+  border: 1px solid #d3e7e9;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  padding: 10px;
+}
+
+.internal-trace > strong {
+  color: #2c5960;
+  font-size: 0.86rem;
+}
+
+.internal-row {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d9e8eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  padding: 10px;
+}
+
+.internal-row span {
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.internal-row small,
+.internal-row em {
+  color: #65727f;
+}
+
 .payload-details summary {
   color: #1f6f8b;
   cursor: pointer;
@@ -497,7 +536,8 @@ th {
 
   .item-row,
   .ranking-row,
-  .trace-row {
+  .trace-row,
+  .internal-row {
     grid-template-columns: 1fr;
   }
 

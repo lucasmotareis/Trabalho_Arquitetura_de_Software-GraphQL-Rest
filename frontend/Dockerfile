@@ -7,6 +7,7 @@ ARG VITE_GRAPHQL_API_URL=http://localhost:8082/graphql
 
 ENV VITE_REST_API_URL=$VITE_REST_API_URL
 ENV VITE_GRAPHQL_API_URL=$VITE_GRAPHQL_API_URL
+ENV CI=true
 
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 

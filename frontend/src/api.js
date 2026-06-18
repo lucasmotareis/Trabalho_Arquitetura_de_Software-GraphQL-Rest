@@ -16,6 +16,8 @@ const REST_BASE_URL = normalizeRestUrl(import.meta.env.VITE_REST_API_URL);
 const GRAPHQL_URL = normalizeGraphqlUrl(import.meta.env.VITE_GRAPHQL_API_URL);
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+const TRACE_HEADER = "X-Backend-Trace";
 
 function payloadBytes(text) {
   return encoder.encode(text ?? "").length;
@@ -43,21 +45,27 @@ function emptyMetrics(scenario, mode) {
     requestCount: 0,
     totalClientMs: 0,
     totalBackendMs: 0,
+    totalInternalMs: 0,
     payloadBytes: 0,
+    internalRequestCount: 0,
     requests: [],
   };
 }
 
 function addRequest(metrics, request) {
+  const internalRequests = request.internalRequests ?? [];
   metrics.requestCount += 1;
   metrics.totalBackendMs += request.backendMs;
+  metrics.totalInternalMs += internalRequests.reduce((sum, item) => sum + Number(item.clientMs ?? 0), 0);
   metrics.payloadBytes += request.payloadBytes;
+  metrics.internalRequestCount += internalRequests.length;
   metrics.requests.push(request);
 }
 
 function finishMetrics(metrics, scenarioStart) {
   metrics.totalClientMs = round(performance.now() - scenarioStart);
   metrics.totalBackendMs = round(metrics.totalBackendMs);
+  metrics.totalInternalMs = round(metrics.totalInternalMs);
   return metrics;
 }
 
@@ -68,6 +76,7 @@ async function timedFetch(label, url, options = {}) {
   const text = await response.text();
   const clientMs = round(performance.now() - start);
   const backendMs = Number.parseFloat(response.headers.get("X-Backend-Time-Ms") ?? "0") || 0;
+  const internalRequests = decodeBackendTrace(response.headers.get(TRACE_HEADER));
   const requestBytes = payloadBytes(requestText);
   const responseBytes = payloadBytes(text);
 
@@ -93,8 +102,32 @@ async function timedFetch(label, url, options = {}) {
       responsePayloadBytes: responseBytes,
       requestPayloadText: formatPayload(requestText),
       responsePayloadText: formatPayload(text),
+      internalRequests,
     },
   };
+}
+
+function decodeBackendTrace(value) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const trace = JSON.parse(decoder.decode(bytes));
+    return Array.isArray(trace)
+      ? trace.map((item) => ({
+          ...item,
+          requestPayloadText: formatPayload(item.requestPayloadText),
+          responsePayloadText: formatPayload(item.responsePayloadText),
+        }))
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 async function restGet(metrics, label, path) {
@@ -196,7 +229,9 @@ function averageMetrics(runs) {
     requestCount: round(average(runs.map((run) => run.requestCount))),
     totalClientMs: round(average(runs.map((run) => run.totalClientMs))),
     totalBackendMs: round(average(runs.map((run) => run.totalBackendMs))),
+    totalInternalMs: round(average(runs.map((run) => run.totalInternalMs))),
     payloadBytes: Math.round(average(runs.map((run) => run.payloadBytes))),
+    internalRequestCount: round(average(runs.map((run) => run.internalRequestCount))),
     requests: first.requests,
     samples: runs.length,
   };

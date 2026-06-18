@@ -1,0 +1,10 @@
+.git
+.m2
+.idea
+.run
+
+**/node_modules
+**/dist
+**/target
+
+*.log

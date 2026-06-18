@@ -28,18 +28,14 @@ public class Produto {
     @NotNull
     private BigDecimal preco;
 
-    @Min(0)
-    private int estoque;
-
     protected Produto() {
     }
 
-    public Produto(String nome, String descricao, String categoria, BigDecimal preco, int estoque) {
+    public Produto(String nome, String descricao, String categoria, BigDecimal preco) {
         this.nome = nome;
         this.descricao = descricao;
         this.categoria = categoria;
         this.preco = preco;
-        this.estoque = estoque;
     }
 
     public Long getId() {
@@ -78,22 +74,4 @@ public class Produto {
         this.preco = preco;
     }
 
-    public int getEstoque() {
-        return estoque;
-    }
-
-    public void setEstoque(int estoque) {
-        this.estoque = estoque;
-    }
-
-    public void baixarEstoque(int quantidade) {
-        if (quantidade <= 0) {
-            throw new IllegalArgumentException("Quantidade deve ser maior que zero.");
-        }
-        if (estoque < quantidade) {
-            throw new IllegalArgumentException("Estoque insuficiente para o produto " + nome + ".");
-        }
-        estoque -= quantidade;
-    }
 }
-

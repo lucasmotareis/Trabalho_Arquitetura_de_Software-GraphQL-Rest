@@ -1,14 +1,13 @@
-package com.example.graphql;
+package com.example.order;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,8 +20,8 @@ public class Pedido {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    private Cliente cliente;
+    @NotNull
+    private Long clienteId;
 
     @NotBlank
     private String status;
@@ -35,8 +34,8 @@ public class Pedido {
     protected Pedido() {
     }
 
-    public Pedido(Cliente cliente, String status, LocalDateTime criadoEm) {
-        this.cliente = cliente;
+    public Pedido(Long clienteId, String status, LocalDateTime criadoEm) {
+        this.clienteId = clienteId;
         this.status = status;
         this.criadoEm = criadoEm;
     }
@@ -45,8 +44,8 @@ public class Pedido {
         return id;
     }
 
-    public Cliente getCliente() {
-        return cliente;
+    public Long getClienteId() {
+        return clienteId;
     }
 
     public String getStatus() {
@@ -76,4 +75,3 @@ public class Pedido {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
-

@@ -6,19 +6,54 @@ Projeto academico para comparar uma API REST granular com uma API GraphQL em um 
 
 - `backend-rest`: Spring Boot REST-only na porta `8081`.
 - `backend-graphql`: Spring Boot GraphQL-only na porta `8082`.
+- `order-service`: Spring Boot interno na porta `8083`, dono de pedidos e itens.
+- `inventory-service`: Spring Boot interno na porta `8084`, dono do estoque.
 - `frontend`: React + Vite na porta `5173`.
 
-Os dois backends usam H2 em memoria e recebem a mesma carga inicial:
+No Docker Compose, a aplicacao usa tres bancos PostgreSQL separados:
+
+- `core-db`: produtos e clientes;
+- `order-db`: pedidos e itens;
+- `inventory-db`: estoque dos produtos.
+
+Em execucao local isolada, os servicos ainda usam H2 em memoria como fallback para testes.
+
+A carga inicial possui:
 
 - 120 produtos;
 - 120 clientes;
 - 150 pedidos;
 - 525 itens de pedido, usados como vendas no dashboard;
-- 1351 unidades vendidas no total.
+- 120 registros de estoque, um por produto.
+
+O frontend tambem mostra chamadas internas via header `X-Backend-Trace`, permitindo visualizar fluxos como `backend-graphql -> order-service` e `backend-graphql -> inventory-service`.
 
 ## Como executar
 
-Em tres terminais:
+Forma recomendada, com a arquitetura completa e PostgreSQL:
+
+```powershell
+$env:BUILDX_NO_DEFAULT_ATTESTATIONS='1'
+docker compose up --build -d
+```
+
+Depois acesse:
+
+- Frontend: `http://localhost:5173`
+- REST: `http://localhost:8081/api/health`
+- GraphQL: `http://localhost:8082/graphql`
+- Order service: `http://localhost:8083/api/health`
+- Inventory service: `http://localhost:8084/api/health`
+
+Para execucao manual com H2, suba os quatro servicos Spring em terminais separados:
+
+```powershell
+.\mvnw.cmd "-Dmaven.repo.local=.m2\repository" -pl inventory-service spring-boot:run
+```
+
+```powershell
+.\mvnw.cmd "-Dmaven.repo.local=.m2\repository" -pl order-service spring-boot:run
+```
 
 ```powershell
 .\mvnw.cmd "-Dmaven.repo.local=.m2\repository" -pl backend-rest spring-boot:run
@@ -55,19 +90,25 @@ No Windows, tambem e possivel iniciar o build estatico com:
 
 ## Deploy com Docker Compose / Coolify
 
-O projeto tambem possui `docker-compose.yml` para deploy em VPS/Coolify.
+O projeto possui `docker-compose.yml` para deploy em VPS/Coolify.
 
 Servicos:
 
 - `backend-rest`: Spring Boot REST na porta interna `8081`;
 - `backend-graphql`: Spring Boot GraphQL na porta interna `8082`;
+- `order-service`: pedidos e itens na porta interna `8083`;
+- `inventory-service`: estoque na porta interna `8084`;
+- `core-db`, `order-db`, `inventory-db`: PostgreSQL 16;
 - `frontend`: React buildado e servido por Nginx na porta interna `80`.
 
 Em ambiente local:
 
 ```powershell
-docker compose up --build
+$env:BUILDX_NO_DEFAULT_ATTESTATIONS='1'
+docker compose up --build -d
 ```
+
+No Docker Desktop usado nos testes, `BUILDX_NO_DEFAULT_ATTESTATIONS=1` evita conflito de exportacao de imagem com manifest/provenance do BuildKit.
 
 No Coolify, configure os dominios de cada servico e informe as URLs publicas no build do frontend:
 
@@ -104,6 +145,14 @@ REST:
 - `GET http://localhost:8081/api/clientes/1/pedidos`
 - `GET http://localhost:8081/api/pedidos/1`
 - `GET http://localhost:8081/api/pedidos/1/itens`
+
+Servicos internos:
+
+- `GET http://localhost:8083/api/pedidos`
+- `GET http://localhost:8083/api/pedidos/1`
+- `GET http://localhost:8083/api/clientes/1/pedidos`
+- `GET http://localhost:8084/api/estoques/1`
+- `GET http://localhost:8084/api/estoques?produtoIds=1,2,3`
 
 GraphQL:
 
@@ -290,6 +339,7 @@ mutation CriarPedido {
 
 - tempo total no cliente;
 - soma do tempo de backend via header `X-Backend-Time-Ms`;
-- quantidade de requisicoes;
+- quantidade de requisicoes do navegador;
+- quantidade de chamadas internas entre servicos via `X-Backend-Trace`;
 - tamanho aproximado do payload;
 - trilha das requisicoes executadas.

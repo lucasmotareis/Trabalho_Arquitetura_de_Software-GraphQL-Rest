@@ -156,7 +156,8 @@ function MetricsStrip({ metrics }) {
   const cards = [
     ["Tempo cliente", metrics ? formatMs(metrics.totalClientMs) : "-"],
     ["Tempo backend", metrics ? formatMs(metrics.totalBackendMs) : "-"],
-    ["Requisicoes", metrics ? metrics.requestCount : "-"],
+    ["Req. navegador", metrics ? metrics.requestCount : "-"],
+    ["Chamadas internas", metrics ? metrics.internalRequestCount : "-"],
     ["Payload", metrics ? formatBytes(metrics.payloadBytes) : "-"],
   ];
 
@@ -197,6 +198,7 @@ function ComparisonTable({ comparison, activeScenarioId }) {
               <th>Cliente</th>
               <th>Backend</th>
               <th>Req.</th>
+              <th>Internas</th>
               <th>Payload</th>
               <th>Amostras</th>
             </tr>
@@ -221,6 +223,7 @@ function ComparisonRow({ scenario, label, metrics }) {
       <td>{metrics ? formatMs(metrics.totalClientMs) : "-"}</td>
       <td>{metrics ? formatMs(metrics.totalBackendMs) : "-"}</td>
       <td>{metrics ? metrics.requestCount : "-"}</td>
+      <td>{metrics ? metrics.internalRequestCount : "-"}</td>
       <td>{metrics ? formatBytes(metrics.payloadBytes) : "-"}</td>
       <td>{metrics?.samples ?? (metrics ? 1 : "-")}</td>
     </tr>
@@ -389,12 +392,13 @@ function RequestTrace({ activeMode, selectedMetrics, restMetrics, graphqlMetrics
   }
 
   const totalRequests = groups.reduce((sum, group) => sum + group.metrics.requests.length, 0);
+  const totalInternalRequests = groups.reduce((sum, group) => sum + (group.metrics.internalRequestCount ?? 0), 0);
 
   return (
     <section className="table-section">
       <div className="section-title">
         <h2>Requisicoes</h2>
-        <span>{totalRequests} chamadas</span>
+        <span>{totalRequests} navegador | {totalInternalRequests} internas</span>
       </div>
       {groups.length === 0 && <p>Nenhuma requisicao executada.</p>}
       {groups.map((group) => (
@@ -403,7 +407,7 @@ function RequestTrace({ activeMode, selectedMetrics, restMetrics, graphqlMetrics
             <span className={`pill ${group.kind}`}>{group.label}</span>
             <small>
               {group.metrics.requests.length} chamadas | {formatMs(group.metrics.totalClientMs)} cliente |{" "}
-              {formatBytes(group.metrics.payloadBytes)}
+              {group.metrics.internalRequestCount ?? 0} internas | {formatBytes(group.metrics.payloadBytes)}
             </small>
           </div>
           <div className="trace-list">
@@ -413,6 +417,7 @@ function RequestTrace({ activeMode, selectedMetrics, restMetrics, graphqlMetrics
                 <small>{request.method} - {request.status}</small>
                 <b>{formatMs(request.clientMs)}</b>
                 <em>{formatBytes(request.responsePayloadBytes ?? request.payloadBytes)}</em>
+                <InternalTrace requests={request.internalRequests ?? []} />
                 <details className="payload-details">
                   <summary>Ver payloads</summary>
                   <div className="payload-grid">
@@ -432,5 +437,38 @@ function RequestTrace({ activeMode, selectedMetrics, restMetrics, graphqlMetrics
         </div>
       ))}
     </section>
+  );
+}
+
+function InternalTrace({ requests }) {
+  if (!requests.length) {
+    return null;
+  }
+
+  return (
+    <div className="internal-trace">
+      <strong>Chamadas internas</strong>
+      {requests.map((request, index) => (
+        <article className="internal-row" key={`${request.source}-${request.target}-${request.path}-${index}`}>
+          <span>{request.source}{" -> "}{request.target}</span>
+          <small>{request.method} {request.path} - {request.status}</small>
+          <b>{formatMs(request.clientMs)}</b>
+          <em>{formatBytes(request.responsePayloadBytes ?? 0)}</em>
+          <details className="payload-details">
+            <summary>Payload interno</summary>
+            <div className="payload-grid">
+              <div className="payload-block">
+                <strong>Enviado ({formatBytes(request.requestPayloadBytes ?? 0)})</strong>
+                <pre>{request.requestPayloadText || "Sem corpo na requisicao"}</pre>
+              </div>
+              <div className="payload-block">
+                <strong>Recebido ({formatBytes(request.responsePayloadBytes ?? 0)})</strong>
+                <pre>{request.responsePayloadText || "Sem corpo na resposta"}</pre>
+              </div>
+            </div>
+          </details>
+        </article>
+      ))}
+    </div>
   );
 }

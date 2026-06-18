@@ -1,4 +1,4 @@
-package com.example.graphql;
+package com.example.order;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
+import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
@@ -18,8 +19,8 @@ public class ItemPedido {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     private Pedido pedido;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    private Produto produto;
+    @NotNull
+    private Long produtoId;
 
     private int quantidade;
 
@@ -28,8 +29,8 @@ public class ItemPedido {
     protected ItemPedido() {
     }
 
-    public ItemPedido(Produto produto, int quantidade, BigDecimal precoUnitario) {
-        this.produto = produto;
+    public ItemPedido(Long produtoId, int quantidade, BigDecimal precoUnitario) {
+        this.produtoId = produtoId;
         this.quantidade = quantidade;
         this.precoUnitario = precoUnitario;
     }
@@ -46,8 +47,8 @@ public class ItemPedido {
         this.pedido = pedido;
     }
 
-    public Produto getProduto() {
-        return produto;
+    public Long getProdutoId() {
+        return produtoId;
     }
 
     public int getQuantidade() {
@@ -62,4 +63,3 @@ public class ItemPedido {
         return precoUnitario.multiply(BigDecimal.valueOf(quantidade));
     }
 }
-

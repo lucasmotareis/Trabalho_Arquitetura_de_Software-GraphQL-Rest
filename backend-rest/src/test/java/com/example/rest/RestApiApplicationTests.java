@@ -21,12 +21,6 @@ class RestApiApplicationTests {
     private ClienteRepository clienteRepository;
 
     @Autowired
-    private PedidoRepository pedidoRepository;
-
-    @Autowired
-    private ItemPedidoRepository itemPedidoRepository;
-
-    @Autowired
     private MockMvc mockMvc;
 
     @Test
@@ -37,8 +31,6 @@ class RestApiApplicationTests {
     void devePopularBancoComMaisDeCemRegistrosPorGrupo() {
         assertTrue(produtoRepository.count() >= 100);
         assertTrue(clienteRepository.count() >= 100);
-        assertTrue(pedidoRepository.count() >= 100);
-        assertTrue(itemPedidoRepository.count() >= 100);
     }
 
     @Test

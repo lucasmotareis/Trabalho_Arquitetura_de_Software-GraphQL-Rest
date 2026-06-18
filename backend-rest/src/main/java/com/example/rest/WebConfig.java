@@ -19,6 +19,6 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(allowedOrigins)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .exposedHeaders(TimingFilter.BACKEND_TIME_HEADER);
+                .exposedHeaders(TimingFilter.BACKEND_TIME_HEADER, BackendTrace.HEADER);
     }
 }
